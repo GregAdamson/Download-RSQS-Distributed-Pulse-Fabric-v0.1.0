@@ -42,10 +42,13 @@ class CapabilityDemand:
     capability: str
     periods: tuple[int, ...]
     priority: int = 0
+    minimum_service: float = 1.0
 
     def __post_init__(self) -> None:
         if any(period < 0 for period in self.periods):
             raise ValueError("periods must be non-negative")
+        if not 0.0 < self.minimum_service <= 1.0:
+            raise ValueError("minimum_service must be in (0,1]")
 
 
 @dataclass(frozen=True)
@@ -172,20 +175,20 @@ class TemporalAllocationPlanner:
             period_demands = [
                 demand for demand in demand_list if period in demand.periods
             ]
-            operational: set[str] = set()
+            service_levels: Dict[str, float] = {}
             failed: set[str] = set()
             allocations: List[TemporalAllocation] = []
 
             for demand in period_demands:
                 trial_stock = dict(stock)
-                trial_operational = set(operational)
+                trial_service_levels = dict(service_levels)
                 trial_allocations = list(allocations)
                 if self._ensure_capability(
-                    period, demand.capability, graph, trial_stock,
-                    trial_operational, trial_allocations, set(),
+                    period, demand.capability, demand.minimum_service, graph, trial_stock,
+                    trial_service_levels, trial_allocations, set(),
                 ):
                     stock = trial_stock
-                    operational = trial_operational
+                    service_levels = trial_service_levels
                     allocations = trial_allocations
                 else:
                     failed.add(demand.capability)
@@ -200,7 +203,7 @@ class TemporalAllocationPlanner:
             results.append(
                 PeriodResult(
                     period=period,
-                    operational_capabilities=tuple(sorted(operational)),
+                    operational_capabilities=tuple(sorted(service_levels)),
                     failed_capabilities=tuple(sorted(failed)),
                     allocations=tuple(allocations),
                     transfers_departed=tuple(sorted(
@@ -231,13 +234,15 @@ class TemporalAllocationPlanner:
         self,
         period: int,
         capability: str,
+        minimum_service: float,
         graph: DependencyGraph,
         stock: Dict[tuple[str, str, str], float],
-        operational: set[str],
+        service_levels: Dict[str, float],
         allocations: List[TemporalAllocation],
         stack: set[str],
     ) -> bool:
-        if capability in operational:
+        current_service = service_levels.get(capability, 0.0)
+        if current_service + 1e-12 >= minimum_service:
             return True
         if capability in stack:
             return False
@@ -249,8 +254,8 @@ class TemporalAllocationPlanner:
             key=lambda item: item.capability,
         ):
             if dependency.critical and not self._ensure_capability(
-                period, dependency.capability, graph, stock,
-                operational, allocations, stack,
+                period, dependency.capability, minimum_service, graph, stock,
+                service_levels, allocations, stack,
             ):
                 return False
 
@@ -260,12 +265,19 @@ class TemporalAllocationPlanner:
         ):
             if not req.critical:
                 continue
+            incremental = req.quantity * max(0.0, minimum_service - current_service)
+            if incremental <= 1e-12:
+                continue
+            scaled = ResourceRequirement(
+                req.resource, incremental, req.unit, req.minimum_quality,
+                req.location, req.critical,
+            )
             if not self._consume_requirement(
-                period, capability, req, stock, allocations
+                period, capability, scaled, stock, allocations
             ):
                 return False
 
-        operational.add(capability)
+        service_levels[capability] = max(current_service, minimum_service)
         return True
 
     def _consume_requirement(
@@ -349,7 +361,8 @@ class TemporalAllocationPlanner:
                 if demand_period <= period or demand_period >= horizon:
                     continue
                 self._accumulate_needs(
-                    demand.capability, demand_period, graph, future_needs, set()
+                    demand.capability, demand_period, demand.minimum_service,
+                    graph, future_needs, set()
                 )
 
         for index, link in enumerate(links):
@@ -409,6 +422,7 @@ class TemporalAllocationPlanner:
         self,
         capability: str,
         period: int,
+        minimum_service: float,
         graph: DependencyGraph,
         needs: Dict[tuple[int, str, str, str], float],
         visited: set[str],
@@ -421,9 +435,9 @@ class TemporalAllocationPlanner:
             if not req.critical or req.location is None:
                 continue
             key = (period, req.resource, req.unit, req.location)
-            needs[key] = needs.get(key, 0.0) + req.quantity
+            needs[key] = max(needs.get(key, 0.0), req.quantity * minimum_service)
         for dependency in graph.capability_requirements.get(capability, []):
             if dependency.critical:
                 self._accumulate_needs(
-                    dependency.capability, period, graph, needs, visited
+                    dependency.capability, period, minimum_service, graph, needs, visited
                 )
