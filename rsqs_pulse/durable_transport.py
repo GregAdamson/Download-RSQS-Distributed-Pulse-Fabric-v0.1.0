@@ -5,7 +5,6 @@ import threading
 from dataclasses import asdict
 from typing import List, Tuple
 
-from .http_transport import pulse_from_dict
 from .model import Pulse
 
 
@@ -41,7 +40,19 @@ class DurablePulseEventStore:
             ).fetchall()
         if not rows:
             return cursor, []
-        return int(rows[-1][0]), [pulse_from_dict(json.loads(row[1])) for row in rows]
+        return int(rows[-1][0]), [
+            Pulse(
+                pulse_id=data["pulse_id"],
+                network=data["network"],
+                epoch=int(data["epoch"]),
+                kind=data["kind"],
+                issued_at=int(data["issued_at"]),
+                expires_at=int(data["expires_at"]),
+                payload=data.get("payload", {}),
+                signature=data.get("signature", ""),
+            )
+            for data in (json.loads(row[1]) for row in rows)
+        ]
 
     def close(self) -> None:
         with self._lock:
