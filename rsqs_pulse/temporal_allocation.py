@@ -34,8 +34,8 @@ class TransportLink:
     loss_fraction: float = 0.0
 
     def __post_init__(self) -> None:
-        if self.capacity_per_period < 0 or self.lead_time_periods < 0:
-            raise ValueError("transport capacity and lead time must be non-negative")
+        if self.capacity_per_period < 0 or self.lead_time_periods < 1:
+            raise ValueError("transport capacity must be non-negative and lead time must be at least one period")
         if not 0.0 <= self.loss_fraction < 1.0:
             raise ValueError("loss_fraction must be in [0,1)")
 
@@ -382,17 +382,58 @@ class TemporalAllocationPlanner:
                 key = (demand_period, req.resource, req.unit, req.location, req.minimum_quality)
                 future_needs[key] = future_needs.get(key, 0.0) + req.quantity * service
 
-        for index, link in enumerate(links):
-            arrival_period = period + link.lead_time_periods
-            if arrival_period <= period or arrival_period >= horizon:
+        for need_key, required_equivalent in sorted(future_needs.items()):
+            arrival_period, requested_resource, unit, destination, minimum_quality = need_key
+            if arrival_period <= period:
                 continue
-            candidate_needs = []
-            for key, quantity in future_needs.items():
-                if key[0] != arrival_period or key[2] != link.unit or key[3] != link.destination:
+
+            local_direct = sum(
+                quantity
+                for (resource, stock_unit, location, quality), quantity in stock.items()
+                if resource == requested_resource and stock_unit == unit
+                and location == destination and quality >= minimum_quality
+            )
+            direct_replenishment = sum(
+                item.quantity
+                for future_period in range(period + 1, arrival_period + 1)
+                for item in replenishment_map.get(future_period, [])
+                if item.resource == requested_resource and item.unit == unit
+                and item.location == destination and item.quality >= minimum_quality
+            )
+            intervening_direct_need = sum(
+                quantity
+                for (need_period, resource, need_unit, location, quality), quantity in future_needs.items()
+                if period < need_period < arrival_period
+                and resource == requested_resource and need_unit == unit
+                and location == destination and quality <= minimum_quality
+            )
+            projected_direct = max(
+                0.0,
+                local_direct + direct_replenishment - intervening_direct_need,
+            )
+            arriving_direct = sum(
+                transfer.delivered_quantity
+                for transfer in arrivals.get(arrival_period, [])
+                if transfer.resource == requested_resource
+                and transfer.unit == unit
+                and transfer.destination == destination
+                and transfer.quality >= minimum_quality
+            )
+            remaining_equivalent = max(
+                0.0,
+                required_equivalent - projected_direct - arriving_direct,
+            )
+            if remaining_equivalent <= 1e-12:
+                continue
+
+            candidate_links = []
+            for index, link in enumerate(links):
+                if period + link.lead_time_periods != arrival_period:
                     continue
-                requested_resource = key[1]
+                if link.destination != destination or link.unit != unit:
+                    continue
                 ratio = None
-                if requested_resource == link.resource:
+                if link.resource == requested_resource:
                     ratio = 1.0
                 else:
                     for alt in self.substitutions.alternatives(requested_resource):
@@ -400,90 +441,74 @@ class TemporalAllocationPlanner:
                             ratio = alt.ratio
                             break
                 if ratio is not None:
-                    candidate_needs.append((key, quantity, ratio))
-            if not candidate_needs:
-                continue
-            minimum_quality = max(key[4] for key, _, _ in candidate_needs)
-            required = sum(quantity * ratio for _, quantity, ratio in candidate_needs)
-            if required <= 1e-12:
-                continue
+                    candidate_links.append((ratio, index, link))
+            candidate_links.sort(
+                key=lambda item: (
+                    item[0], item[2].resource, item[2].source,
+                    item[2].destination, item[1],
+                )
+            )
 
-            already_arriving = sum(
-                transfer.delivered_quantity
-                for transfer in arrivals.get(arrival_period, [])
-                if transfer.resource == link.resource
-                and transfer.unit == link.unit
-                and transfer.destination == link.destination
-                and transfer.quality >= minimum_quality
-            )
-            local = sum(
-                quantity for (resource, unit, location, quality), quantity in stock.items()
-                if resource == link.resource and unit == link.unit
-                and location == link.destination and quality >= minimum_quality
-            )
-            scheduled_replenishment = sum(
-                item.quantity
-                for future_period in range(period + 1, arrival_period + 1)
-                for item in replenishment_map.get(future_period, [])
-                if item.resource == link.resource and item.unit == link.unit
-                and item.location == link.destination and item.quality >= minimum_quality
-            )
-            shortage = max(
-                0.0,
-                required - local - scheduled_replenishment - already_arriving,
-            )
-            if shortage <= 1e-12:
-                continue
-
-            capacity_key = (period, index)
-            capacity_left = max(
-                0.0,
-                link.capacity_per_period - link_capacity_used.get(capacity_key, 0.0),
-            )
-            source_keys = sorted(
-                [
-                    key for key in stock
-                    if key[0] == link.resource and key[1] == link.unit
-                    and key[2] == link.source and key[3] >= minimum_quality
-                    and stock[key] > 1e-12
-                ],
-                key=lambda key: (-key[3], key[2]),
-            )
-            source_available = sum(stock[key] for key in source_keys)
-            if capacity_left <= 1e-12 or source_available <= 1e-12:
-                continue
-
-            delivered_per_shipped = 1.0 - link.loss_fraction
-            shipped_for_shortage = shortage / delivered_per_shipped
-            shipped = min(capacity_left, source_available, shipped_for_shortage)
-            if shipped <= 1e-12:
-                continue
-
-            remaining_ship = shipped
-            shipped_by_quality = []
-            for source_key in source_keys:
-                take = min(stock[source_key], remaining_ship)
-                if take > 0:
-                    stock[source_key] -= take
-                    shipped_by_quality.append((take, source_key[3]))
-                    remaining_ship -= take
-                if remaining_ship <= 1e-12:
+            for ratio, index, link in candidate_links:
+                if remaining_equivalent <= 1e-12:
                     break
-            link_capacity_used[capacity_key] = link_capacity_used.get(capacity_key, 0.0) + shipped
-            for shipped_part, quality in shipped_by_quality:
-                delivered = shipped_part * delivered_per_shipped
-                arrivals.setdefault(arrival_period, []).append(
-                    Transfer(
-                        depart_period=period,
-                        arrive_period=arrival_period,
-                        source=link.source,
-                        destination=link.destination,
-                        resource=link.resource,
-                        unit=link.unit,
-                        shipped_quantity=shipped_part,
-                        delivered_quantity=delivered,
-                        quality=quality,
+                capacity_key = (period, index)
+                capacity_left = max(
+                    0.0,
+                    link.capacity_per_period - link_capacity_used.get(capacity_key, 0.0),
+                )
+                if capacity_left <= 1e-12:
+                    continue
+                source_keys = sorted(
+                    [
+                        key for key in stock
+                        if key[0] == link.resource and key[1] == link.unit
+                        and key[2] == link.source and key[3] >= minimum_quality
+                        and stock[key] > 1e-12
+                    ],
+                    key=lambda key: (-key[3], key[2]),
+                )
+                source_available = sum(stock[key] for key in source_keys)
+                if source_available <= 1e-12:
+                    continue
+
+                delivered_per_shipped = 1.0 - link.loss_fraction
+                shipped_needed = remaining_equivalent * ratio / delivered_per_shipped
+                shipped = min(capacity_left, source_available, shipped_needed)
+                if shipped <= 1e-12:
+                    continue
+
+                remaining_ship = shipped
+                delivered_total = 0.0
+                for source_key in source_keys:
+                    take = min(stock[source_key], remaining_ship)
+                    if take <= 0:
+                        continue
+                    stock[source_key] -= take
+                    delivered = take * delivered_per_shipped
+                    delivered_total += delivered
+                    arrivals.setdefault(arrival_period, []).append(
+                        Transfer(
+                            depart_period=period,
+                            arrive_period=arrival_period,
+                            source=link.source,
+                            destination=link.destination,
+                            resource=link.resource,
+                            unit=link.unit,
+                            shipped_quantity=take,
+                            delivered_quantity=delivered,
+                            quality=source_key[3],
+                        )
                     )
+                    remaining_ship -= take
+                    if remaining_ship <= 1e-12:
+                        break
+                link_capacity_used[capacity_key] = (
+                    link_capacity_used.get(capacity_key, 0.0) + shipped
+                )
+                remaining_equivalent = max(
+                    0.0,
+                    remaining_equivalent - delivered_total / ratio,
                 )
 
     def _accumulate_service_levels(
