@@ -58,6 +58,7 @@ class CognitiveSubstrateTests(unittest.TestCase):
             result = runtime.experiment(
                 "exp-1", "increment-command", "increment", {"delta": 3}, State({"x": 1}),
                 lambda action, args: State({"x": 1 + args["delta"]}), "test-rig",
+                lambda before, after: after.values["x"] > before.values["x"],
             )
             self.assertEqual(result.best_model, "correct")
             self.assertGreater(result.causal.support, 0)
