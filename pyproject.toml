@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rsqs-distributed-pulse"
-version = "0.5.0"
-description = "Persistent multi-process distributed state, cognition and authorised action fabric"
+version = "0.6.0"
+description = "Distributed state, cognition, causal learning and authorised action fabric"
 requires-python = ">=3.10"
 dependencies = [
   "cryptography>=43.0"
