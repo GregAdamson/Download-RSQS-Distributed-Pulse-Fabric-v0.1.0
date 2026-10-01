@@ -48,6 +48,7 @@ from .substitution import Substitution, SubstitutionGraph
 from .subscriptions import Subscription, SubscriptionRouter
 from .swarm import Swarm, SwarmMember, SwarmPlanner
 from .taskgraph import GraphExecutor, GraphTask, TaskGraph
+from .temporal_allocation import CapabilityDemand, PeriodResult, Replenishment, TemporalAllocation, TemporalAllocationPlan, TemporalAllocationPlanner, Transfer, TransportLink
 from .temporal_state import StateClass, TemporalFact, TemporalStateStore
 from .world_models import CompetingWorldModels, ModelEvaluation, WorldModel
 from .world_state import StateFact, WorldState
