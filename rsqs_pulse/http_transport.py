@@ -126,10 +126,13 @@ class PulseHTTPServer:
         host, port = self.httpd.server_address[:2]
         return str(host), int(port)
 
+    def serve_forever(self) -> None:
+        self.httpd.serve_forever()
+
     def start(self) -> None:
         if self.thread is not None:
             return
-        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.thread = threading.Thread(target=self.serve_forever, daemon=True)
         self.thread.start()
 
     def close(self) -> None:
