@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import ssl
 import threading
 import urllib.parse
 import urllib.request
@@ -51,6 +52,7 @@ class PulseHTTPServer:
         *,
         store=None,
         store_path: str | None = None,
+        ssl_context: ssl.SSLContext | None = None,
     ) -> None:
         if store is not None and store_path is not None:
             raise ValueError("provide store or store_path, not both")
@@ -112,6 +114,11 @@ class PulseHTTPServer:
                 })
 
         self.httpd = ThreadingHTTPServer((host, port), Handler)
+        if ssl_context is not None:
+            self.httpd.socket = ssl_context.wrap_socket(
+                self.httpd.socket,
+                server_side=True,
+            )
         self.thread: threading.Thread | None = None
 
     @property
@@ -136,10 +143,27 @@ class PulseHTTPServer:
 
 
 class HTTPTransportClient:
-    def __init__(self, base_url: str, publish_token: str | None = None, timeout: float = 5.0) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        publish_token: str | None = None,
+        timeout: float = 5.0,
+        *,
+        ssl_context: ssl.SSLContext | None = None,
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self.publish_token = publish_token
         self.timeout = timeout
+        self.ssl_context = ssl_context
+
+    def _open(self, request):
+        if self.ssl_context is None:
+            return urllib.request.urlopen(request, timeout=self.timeout)
+        return urllib.request.urlopen(
+            request,
+            timeout=self.timeout,
+            context=self.ssl_context,
+        )
 
     def publish(self, pulse: Pulse) -> int:
         if self.publish_token is None:
@@ -153,12 +177,16 @@ class HTTPTransportClient:
                 "Authorization": "Bearer " + self.publish_token,
             },
         )
-        with urllib.request.urlopen(request, timeout=self.timeout) as response:
+        with self._open(request) as response:
             body = json.loads(response.read().decode("ascii"))
         return int(body["cursor"])
 
     def poll(self, after: int = 0, limit: int = 100) -> tuple[int, list[Pulse]]:
         query = urllib.parse.urlencode({"after": after, "limit": limit})
-        with urllib.request.urlopen(self.base_url + "/v1/pulses?" + query, timeout=self.timeout) as response:
+        request = urllib.request.Request(
+            self.base_url + "/v1/pulses?" + query,
+            method="GET",
+        )
+        with self._open(request) as response:
             body = json.loads(response.read().decode("ascii"))
         return int(body["cursor"]), [pulse_from_dict(item) for item in body["events"]]
