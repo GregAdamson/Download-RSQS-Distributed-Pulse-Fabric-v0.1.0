@@ -43,8 +43,24 @@ class PulseEventStore:
 
 
 class PulseHTTPServer:
-    def __init__(self, host: str, port: int, publish_token: str) -> None:
-        self.store = PulseEventStore()
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        publish_token: str,
+        *,
+        store=None,
+        store_path: str | None = None,
+    ) -> None:
+        if store is not None and store_path is not None:
+            raise ValueError("provide store or store_path, not both")
+        if store_path is not None:
+            from .durable_transport import DurablePulseEventStore
+            self.store = DurablePulseEventStore(store_path)
+            self._owns_store = True
+        else:
+            self.store = store or PulseEventStore()
+            self._owns_store = False
         store = self.store
         token = publish_token
 
@@ -115,6 +131,8 @@ class PulseHTTPServer:
         if self.thread is not None:
             self.thread.join(timeout=2)
             self.thread = None
+        if self._owns_store and hasattr(self.store, "close"):
+            self.store.close()
 
 
 class HTTPTransportClient:
