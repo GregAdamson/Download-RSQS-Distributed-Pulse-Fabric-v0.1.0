@@ -2,6 +2,7 @@ from .broker import InMemoryBroker
 from .capabilities import CapabilityAdvertisement, CapabilityRegistry
 from .coordinator import Coordinator
 from .federation import FederationScope, within_scope
+from .http_transport import HTTPTransportClient, PulseEventStore, PulseHTTPServer
 from .identity import NodeIdentity, PublicIdentity
 from .intent import DeterministicIntentCompiler, IntentStep
 from .manifests import AgentManifest, sign_manifest, verify_manifest
@@ -28,6 +29,9 @@ __all__ = [
     "Coordinator",
     "FederationScope",
     "within_scope",
+    "HTTPTransportClient",
+    "PulseEventStore",
+    "PulseHTTPServer",
     "NodeIdentity",
     "PublicIdentity",
     "DeterministicIntentCompiler",
