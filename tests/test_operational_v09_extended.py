@@ -15,6 +15,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 
 from rsqs_pulse.daemon import RuntimeHTTPDaemon
+from rsqs_pulse.dependency_graph import DependencyGraph
 from rsqs_pulse.distributed_runtime import DistributedCoordinator
 from rsqs_pulse.domain_adapter import CanonicalRule
 from rsqs_pulse.http_transport import HTTPTransportClient, PulseHTTPServer
