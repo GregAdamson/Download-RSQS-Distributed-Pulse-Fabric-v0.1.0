@@ -21,6 +21,7 @@ from .model_store import WorldModelStore
 from .model import Capability, Pulse, Task, TaskResult
 from .node import Node
 from .offline import OfflineJournal
+from .operation_ledger import LedgerState, OperationLedger, OperationRecord
 from .oracle import DistributedOracle, EvidenceClaim, OracleAssessment
 from .persistent import SQLiteState
 from .persistent_identity import load_or_create_identity
@@ -42,5 +43,6 @@ from .substitution import Substitution, SubstitutionGraph
 from .subscriptions import Subscription, SubscriptionRouter
 from .swarm import Swarm, SwarmMember, SwarmPlanner
 from .taskgraph import GraphExecutor, GraphTask, TaskGraph
+from .temporal_state import StateClass, TemporalFact, TemporalStateStore
 from .world_models import CompetingWorldModels, ModelEvaluation, WorldModel
 from .world_state import StateFact, WorldState
