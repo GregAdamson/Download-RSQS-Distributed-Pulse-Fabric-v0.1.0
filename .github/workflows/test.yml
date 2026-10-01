@@ -15,4 +15,4 @@ jobs:
       - name: Install
         run: python3 -m pip install -e .
       - name: Run complete build
-        run: ./run_all.sh
+        run: bash run_all.sh
