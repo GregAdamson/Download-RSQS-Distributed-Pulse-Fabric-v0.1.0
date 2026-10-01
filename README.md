@@ -1,6 +1,6 @@
 # RSQS Distributed Pulse Fabric v0.2.0
 
-An opt-in distributed cognitive execution fabric built around authenticated global pulses, deterministic intent compilation, local policy, capability discovery, resource-aware routing, task graphs, temporary swarms, persistent world state, provenance, signed agent manifests, subscriptions and offline reconciliation.
+An opt-in distributed cognitive execution fabric built around authenticated global pulses, deterministic intent compilation, local policy, capability discovery, resource-aware routing, task graphs, temporary swarms, persistent world state, provenance, signed agent manifests, subscriptions, offline reconciliation and a real HTTP network transport boundary.
 
 The repository does not implement Internet scanning, self-propagation, credential bypass, arbitrary remote shell execution, or installation on non-enrolled machines.
 
@@ -20,6 +20,9 @@ capability registry + resource router
         |
         v
 Ed25519 signed pulse authority
+        |
+        v
+HTTP or local pub/sub transport
         |
         v
 federated event/subscription namespace
@@ -46,6 +49,7 @@ versioned world state
 ## Implemented capabilities
 
 - Ed25519 authority and node identities.
+- Authenticated HTTP publish plus remote pull/poll event transport.
 - Persistent SQLite epochs, capability advertisements, task results and offline events.
 - Hash-chained tamper-evident provenance.
 - Capability discovery and deterministic provider filtering.
@@ -67,6 +71,7 @@ versioned world state
 
 - `identity.py` - Ed25519 identity.
 - `secure.py` - secure coordinator and node runtime.
+- `http_transport.py` - authenticated network transport.
 - `persistent.py` - SQLite state.
 - `provenance.py` - hash-chain audit ledger.
 - `capabilities.py` - capability advertisements.
@@ -84,7 +89,8 @@ versioned world state
 
 ## Security invariants
 
-- Incorrectly signed secure pulses are rejected.
+- Incorrectly signed secure pulses are rejected by secure nodes.
+- HTTP publication requires an explicit bearer credential.
 - Epochs cannot move backwards at a node.
 - Expired pulses are rejected.
 - Local policy can veto any distributed request.
@@ -104,16 +110,21 @@ python3 -m pip install -e .
 ./run_all.sh
 ```
 
-The full test command is:
+The master run executes the original demo, v0.2 integrated demo, HTTP transport demo and all unit tests.
 
-```bash
-python3 -m unittest discover -s tests -v
+## Network deployment
+
+`PulseHTTPServer` can bind to a network interface and exposes:
+
+```text
+POST /v1/pulses
+GET  /v1/pulses?after=<cursor>&limit=<n>
 ```
 
-## Deployment boundary
+Publish is bearer-authenticated. Pulses themselves remain Ed25519 signed, so receiving nodes validate authority independently of the transport.
 
-The bundled transport is deliberately deterministic and local. Production adapters can map the same semantics onto NATS, MQTT, HTTPS/SSE, Redis Streams or Kafka. Signature verification, local authorization, federation scope and capability admission remain node-side regardless of transport.
+The built-in server is deliberately minimal. For Internet-facing deployment place it behind TLS, authentication/rate-limit infrastructure, or replace it with NATS, MQTT, HTTPS/SSE, Redis Streams or Kafka while retaining node-side signature and policy checks.
 
 ## Remaining production hardening
 
-Production deployment still requires deployment-specific key storage, certificate/key rotation and revocation, encrypted transport configuration, rate limiting, schema negotiation, durable broker adapters, multi-authority trust configuration and operational monitoring. Those are deployment concerns rather than hidden permissions in the fabric.
+Production deployment still requires deployment-specific key storage, certificate/key rotation and revocation, TLS termination, rate limiting, schema negotiation, durable broker storage, multi-authority trust configuration and operational monitoring.
