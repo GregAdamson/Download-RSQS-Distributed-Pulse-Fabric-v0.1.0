@@ -49,6 +49,7 @@ class NetworkResiliencePlan:
     viable: bool
     recovered_targets: tuple[str, ...]
     failed_targets: tuple[str, ...]
+    failed_capabilities: tuple[str, ...]
     operational_capabilities: tuple[str, ...]
     allocations: tuple[NetworkAllocation, ...]
     unresolved: tuple[tuple[str, ResourceRequirement], ...]
@@ -153,6 +154,10 @@ class NetworkResiliencePlanner:
         ordered_targets = sorted(targets, key=lambda target: (-target.priority, target.capability))
         recovered: List[str] = []
         failed: List[str] = []
+        failed_unresolved: List[tuple[str, ResourceRequirement]] = []
+        required_capabilities = self._required_closure(
+            [target.capability for target in ordered_targets], graph
+        )
 
         for target in ordered_targets:
             trial = state.clone()
@@ -161,16 +166,34 @@ class NetworkResiliencePlanner:
                 recovered.append(target.capability)
             else:
                 failed.append(target.capability)
+                failed_unresolved.extend(
+                    item for item in trial.unresolved if item not in failed_unresolved
+                )
 
+        failed_capabilities = tuple(sorted(required_capabilities - state.operational))
         return NetworkResiliencePlan(
             viable=not failed,
             recovered_targets=tuple(recovered),
             failed_targets=tuple(failed),
+            failed_capabilities=failed_capabilities,
             operational_capabilities=tuple(sorted(state.operational)),
             allocations=tuple(state.allocations),
-            unresolved=tuple(state.unresolved),
+            unresolved=tuple(failed_unresolved),
             shocks=shock_tuple,
         )
+
+    def _required_closure(self, targets: Iterable[str], graph: DependencyGraph) -> set[str]:
+        required: set[str] = set()
+        def visit(capability: str) -> None:
+            if capability in required:
+                return
+            required.add(capability)
+            for dependency in graph.capability_requirements.get(capability, []):
+                if dependency.critical:
+                    visit(dependency.capability)
+        for target in targets:
+            visit(target)
+        return required
 
     def _ensure_capability(
         self,
