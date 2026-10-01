@@ -1,0 +1,9 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rsqs-distributed-pulse"
+version = "0.1.0"
+description = "Opt-in distributed signed pulse and agent execution fabric"
+requires-python = ">=3.10"
