@@ -1,52 +1,95 @@
-# RSQS Distributed State, Cognition and Action Fabric v0.8.0
+# RSQS Distributed State, Cognition and Action Fabric v0.9.0
 
-RSQS is an executable deterministic fabric for authorised distributed action, temporal world-state reasoning, causal learning, resource resilience and auditable strategy selection.
+RSQS is an executable deterministic fabric for authorised distributed action, temporal world-state reasoning, causal learning, resource resilience, bounded strategy search and auditable operational coordination.
 
-## Implemented layers
+## v0.9 operational layer
 
-### Distributed execution and recovery
+### Explicit trust plane
 
-The fabric includes signed task/result transport, persistent identity and epochs, local-policy enforcement, idempotency journals, recoverable workers and physical-effect reconciliation. Unknown external outcomes are not interpreted as safe retries.
+Nodes can be enrolled using authority-signed grants with:
 
-### Authoritative temporal world state
+- public-key identity;
+- scoped capabilities;
+- issue and expiry time;
+- revocation;
+- key rotation.
 
-Observed, believed, predicted, desired and counterfactual state are represented separately. Runtime actions are recorded in a durable operation ledger and observed outcomes override planner predictions.
+Distributed dispatch can require both an active authority grant and a currently valid node-signed capability advertisement. Local worker policy remains an independent deny boundary.
 
-### Causal and scientific learning
+### Durable and TLS-capable transport
 
-The repository includes competing world models, prediction-error tracking, causal evidence, deterministic experiments, intervention/observation separation, replication evidence, counterevidence and provenance.
+The pulse HTTP transport can use a durable SQLite event store and optional TLS server/client contexts. The deployment CLI reads bearer tokens from an environment variable instead of requiring them on the command line.
 
-### Resource, dependency and resilience reasoning
+### Multi-host acceptance harness
 
-Persistent resource inventories model quantity, unit, location, quality, ownership, replenishment and lead time. Dependency graphs propagate capability failures, substitution graphs model conversion ratios, and resilience planners allocate shared resources without double counting.
+The repository contains signed host-evidence generation and verification for the physical multi-host acceptance criteria. The verifier requires enrolled signing identities and distinct host-instance attestations.
 
-### Whole-network and temporal allocation
+`MULTI_HOST_HARNESS_PROOF=PASS` proves the harness in CI. It does **not** prove that three physical machines have passed acceptance. Physical acceptance remains the procedure in `docs/V09_MULTI_HOST_RUNBOOK.md`.
 
-The network resilience planner recursively allocates dependencies and substitutions across multiple targets. The temporal allocator carries stock across periods and models minimum service, replenishment, transport capacity, lead time, loss, quality and advance prepositioning.
+### Operational observability
 
-### Strategy optimisation
+The runtime observability surface includes:
 
-`TrajectoryOptimizer` generates, validates, scores and deterministically ranks candidate trajectories. Invalid trajectories cannot outrank admissible ones. Resilience objective weights are explicit configuration.
+- health and provenance validity;
+- current world state;
+- unresolved operations;
+- registered capability status;
+- active enrolled node IDs and trust counts;
+- resource bottlenecks when an inventory/dependency graph is attached;
+- strategy evidence counts;
+- highest-scoring validated stored trajectory.
 
-### Monte Carlo resilience
+The runtime daemon exposes this through `/observability` and unresolved operations through `/operations`.
 
-`MonteCarloResilienceEngine` produces reproducible seeded resource-shock scenarios, evaluates them through a caller-supplied simulator and reports survival rate, average score and failure-period statistics.
+### Bounded strategy search
 
-### Dependency centrality
+The strategy layer now has:
 
-`DependencyCentralityAnalyzer` scores both resource and capability nodes, follows recursive downstream dependencies and accounts for explicit substitution alternatives.
+- deterministic trajectory generation/validation/scoring;
+- bounded beam search;
+- exhaustive bounded search.
 
-### Resilience oracle
+Exhaustive search reports whether the configured finite search space was completed or truncated by the candidate cap. A result is only globally optimal **within the configured bounds and generated search tree** when the search reports complete.
 
-`ResilienceOracle` combines temporal viability, Monte Carlo outcomes and dependency centrality into one evidence-bearing assessment rather than treating any single model as authoritative.
+### Target-agnostic institutional/data adapters
 
-### Persistent strategy evidence
+The adapter layer is intentionally domain-neutral. Caller-supplied mappings can project external records into canonical:
 
-`ResilienceStore` persists scenarios, candidate trajectories, outcomes and lessons. `LearningReconciliation` stores predicted versus observed state, explicit error vectors, lessons and provenance across restart.
+- observations;
+- resources;
+- capability/resource dependencies;
+- institutional rules;
+- provenance references.
+
+Adapter batches can be applied to runtime world state, resource inventory, dependency graphs and a persistent institutional rule store without hard-coding a sector or institution.
+
+## Existing deterministic substrate
+
+v0.9 retains the prior executable layers:
+
+- signed distributed task/result execution;
+- persistent identity and epochs;
+- idempotency and physical-effect reconciliation;
+- authoritative temporal state;
+- causal/scientific learning;
+- resource inventories and substitution;
+- recursive dependency/resilience planning;
+- multi-period allocation with replenishment, quality, transport, loss and lead time;
+- resilience objective scoring;
+- seeded Monte Carlo shock testing;
+- dependency centrality;
+- resilience oracle;
+- persistent scenarios, trajectories, outcomes and lessons.
 
 ## Executable proof chain
 
-`run_all.sh` executes the repository demonstrations and the complete unit/integration suite.
+Run:
+
+```bash
+bash run_all.sh
+```
+
+The complete build compiles the package, deployment scripts and tests before running all demonstrations and unit/integration tests.
 
 Current proof markers include:
 
@@ -59,38 +102,54 @@ RESOURCE_RESILIENCE_PROOF=PASS
 NETWORK_RESILIENCE_PROOF=PASS
 TEMPORAL_ALLOCATION_PROOF=PASS
 STRATEGY_ORACLE_PROOF=PASS
+OPERATIONAL_FABRIC_PROOF=PASS
+MULTI_HOST_HARNESS_PROOF=PASS
 ```
 
-The strategy integration proof exercises:
+## Deployment tooling
+
+Operator-facing scripts include:
 
 ```text
-resource state
- -> temporal allocation
- -> trajectory validation
- -> resilience scoring
- -> selected strategy
- -> seeded Monte Carlo shocks
- -> resilience oracle
- -> prediction/observation reconciliation
- -> persistent lesson
+scripts/pulse_transport_server.py
+scripts/host_coordinator.py
+scripts/host_worker.py
+scripts/trust_admin.py
+scripts/multi_host_evidence.py
 ```
 
-## Run
+The canonical physical-host procedure is:
 
-```bash
-bash run_all.sh
+```text
+docs/V09_MULTI_HOST_RUNBOOK.md
 ```
 
 ## Design invariants
 
 - local deny overrides remote allow;
+- enrolment is explicit and scoped;
+- expired or revoked authority is not valid authority;
+- capability discovery can require signed advertisements;
 - prediction is not observation;
 - unknown physical outcome is not proof of non-execution;
 - resources cannot be allocated twice;
+- current obligations are not silently sacrificed for future ones;
 - invalid trajectories cannot win optimisation;
+- truncated search is not described as globally optimal;
 - learning preserves historical evidence and provenance;
-- optimisation searches among admissible trajectories but does not override the deterministic constraint layer.
+- optimisation proposes; deterministic admissibility decides;
+- no Internet scanning, self-propagation or arbitrary remote shell is part of the fabric.
 
 ## Boundaries
 
-This repository is a tested research/software fabric, not evidence of AGI or autonomous general intelligence. The trajectory optimiser is deterministic and objective-driven rather than a proof of globally optimal allocation. Monte Carlo results are only as meaningful as the supplied scenario distributions and simulator. Real production deployment still requires operational infrastructure such as hardened transport/TLS, credential lifecycle and revocation, deployment monitoring and physical multi-host acceptance testing.
+This repository is tested research/software infrastructure, not evidence of AGI or autonomous general intelligence.
+
+CI proves the software mechanisms and simulated/signed acceptance harness. It does not establish:
+
+- physical independence of hosts;
+- absence of a copied secret without operator attestation;
+- production security accreditation;
+- Internet-scale operation;
+- global mathematical optimality outside a fully explored bounded search space.
+
+The remaining physical acceptance boundary is to run the v0.9 multi-host procedure on three distinct enrolled machines and preserve their signed evidence/logs.
