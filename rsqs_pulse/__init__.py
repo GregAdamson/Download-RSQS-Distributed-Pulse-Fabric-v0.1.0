@@ -37,6 +37,7 @@ from .resource_exchange import ResourceExchange, ResourceMatch, ResourceNeed, Re
 from .resource_state import ResourceInventory, ResourceLot
 from .resources import ResourceProfile
 from .resilience import ResiliencePlan, ResiliencePlanner, ScarcityAnalyzer, ScarcityFinding, SubstitutionAllocation
+from .resilience_objectives import ResilienceMetrics, ResilienceObjective, ResilienceWeights
 from .routing import ResourceAwareRouter, RouteDecision
 from .runtime import FabricRuntime, RuntimeCycleResult, RuntimeTransition
 from .secure import SecureCoordinator, SecureNode
@@ -50,5 +51,6 @@ from .swarm import Swarm, SwarmMember, SwarmPlanner
 from .taskgraph import GraphExecutor, GraphTask, TaskGraph
 from .temporal_allocation import CapabilityDemand, PeriodResult, Replenishment, TemporalAllocation, TemporalAllocationPlan, TemporalAllocationPlanner, Transfer, TransportLink
 from .temporal_state import StateClass, TemporalFact, TemporalStateStore
+from .trajectory_optimizer import TrajectoryCandidate, TrajectoryOptimizer, TrajectoryState
 from .world_models import CompetingWorldModels, ModelEvaluation, WorldModel
 from .world_state import StateFact, WorldState
