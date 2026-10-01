@@ -1,69 +1,96 @@
-# RSQS Distributed State, Cognition and Action Fabric v0.6.0
+# RSQS Distributed State, Cognition and Action Fabric v0.8.0
 
-v0.6 extends the executable fabric from distributed action into a causal-learning substrate.
+RSQS is an executable deterministic fabric for authorised distributed action, temporal world-state reasoning, causal learning, resource resilience and auditable strategy selection.
 
-## New executable primitives
+## Implemented layers
 
-### Sovereign cells
+### Distributed execution and recovery
 
-A `SovereignCell` is a recursively composable unit with explicit identity, type, authority scope, capabilities, resources, constraints and relationships. Discovery can filter both capability and authority scope.
+The fabric includes signed task/result transport, persistent identity and epochs, local-policy enforcement, idempotency journals, recoverable workers and physical-effect reconciliation. Unknown external outcomes are not interpreted as safe retries.
 
-### Causal transition memory
+### Authoritative temporal world state
 
-`CausalMemory` persists observations of:
+Observed, believed, predicted, desired and counterfactual state are represented separately. Runtime actions are recorded in a durable operation ledger and observed outcomes override planner predictions.
+
+### Causal and scientific learning
+
+The repository includes competing world models, prediction-error tracking, causal evidence, deterministic experiments, intervention/observation separation, replication evidence, counterevidence and provenance.
+
+### Resource, dependency and resilience reasoning
+
+Persistent resource inventories model quantity, unit, location, quality, ownership, replenishment and lead time. Dependency graphs propagate capability failures, substitution graphs model conversion ratios, and resilience planners allocate shared resources without double counting.
+
+### Whole-network and temporal allocation
+
+The network resilience planner recursively allocates dependencies and substitutions across multiple targets. The temporal allocator carries stock across periods and models minimum service, replenishment, transport capacity, lead time, loss, quality and advance prepositioning.
+
+### Strategy optimisation
+
+`TrajectoryOptimizer` generates, validates, scores and deterministically ranks candidate trajectories. Invalid trajectories cannot outrank admissible ones. Resilience objective weights are explicit configuration.
+
+### Monte Carlo resilience
+
+`MonteCarloResilienceEngine` produces reproducible seeded resource-shock scenarios, evaluates them through a caller-supplied simulator and reports survival rate, average score and failure-period statistics.
+
+### Dependency centrality
+
+`DependencyCentralityAnalyzer` scores both resource and capability nodes, follows recursive downstream dependencies and accounts for explicit substitution alternatives.
+
+### Resilience oracle
+
+`ResilienceOracle` combines temporal viability, Monte Carlo outcomes and dependency centrality into one evidence-bearing assessment rather than treating any single model as authoritative.
+
+### Persistent strategy evidence
+
+`ResilienceStore` persists scenarios, candidate trajectories, outcomes and lessons. `LearningReconciliation` stores predicted versus observed state, explicit error vectors, lessons and provenance across restart.
+
+## Executable proof chain
+
+`run_all.sh` executes the repository demonstrations and the complete unit/integration suite.
+
+Current proof markers include:
 
 ```text
-CAUSE + ACTION + CONTEXT + BEFORE STATE -> AFTER STATE
-```
-
-Supporting and opposing observations remain separate. The causal assessment reports both rather than collapsing disagreement.
-
-### Competing world models
-
-Multiple `WorldModel` implementations can predict the same transition. Actual observed state is compared with every prediction. Prediction error is accumulated and model score changes from evidence rather than textual plausibility.
-
-### Deterministic experiment loop
-
-`LearningRuntime` joins experiments, competing models, causal evidence and hash-chained provenance:
-
-```text
-BEFORE STATE
- -> competing predictions
- -> authorised/controlled experiment
- -> observed AFTER STATE
- -> prediction error
- -> model evidence update
- -> causal transition evidence
- -> provenance
- -> next experiment
-```
-
-The test suite includes repeated observations that falsify a persistently bad model in favour of the model with lower prediction error.
-
-### Resource substitution
-
-`SubstitutionGraph` represents explicit resource alternatives, conversion ratios and constraints. This is a basis for later scarcity/bottleneck and resilience reasoning without assuming that similarly named resources are interchangeable.
-
-## Proof marker
-
-`scripts/cognitive_substrate_demo.py` runs repeated controlled state transitions and requires the better predictive model to emerge while causal observations and provenance accumulate.
-
-A successful execution ends with:
-
-```text
+DISTRIBUTED_PROCESS_PROOF=PASS
 COGNITIVE_SUBSTRATE_PROOF=PASS
+HARDENING_PROOF=PASS
+PHYSICAL_RECONCILIATION_PROOF=PASS
+RESOURCE_RESILIENCE_PROOF=PASS
+NETWORK_RESILIENCE_PROOF=PASS
+TEMPORAL_ALLOCATION_PROOF=PASS
+STRATEGY_ORACLE_PROOF=PASS
 ```
 
-## Complete local proof
+The strategy integration proof exercises:
+
+```text
+resource state
+ -> temporal allocation
+ -> trajectory validation
+ -> resilience scoring
+ -> selected strategy
+ -> seeded Monte Carlo shocks
+ -> resilience oracle
+ -> prediction/observation reconciliation
+ -> persistent lesson
+```
+
+## Run
 
 ```bash
-./run_all.sh
+bash run_all.sh
 ```
 
-This now includes historical pulse/network demonstrations, persistent runtime recovery, multi-process distributed task/result proof, causal-learning proof and the complete unit/integration test suite.
+## Design invariants
+
+- local deny overrides remote allow;
+- prediction is not observation;
+- unknown physical outcome is not proof of non-execution;
+- resources cannot be allocated twice;
+- invalid trajectories cannot win optimisation;
+- learning preserves historical evidence and provenance;
+- optimisation searches among admissible trajectories but does not override the deterministic constraint layer.
 
 ## Boundaries
 
-The repository now contains executable mechanisms for distributed execution and deterministic causal/model learning. It does not yet establish general causal truth: causal evidence is observational/experimental evidence and must retain provenance, context and counterevidence.
-
-The physical multi-host acceptance test in `docs/MULTI_HOST_PROOF.md` remains unexecuted from this environment. Production deployment still requires durable network infrastructure, TLS, key lifecycle/revocation, explicit enrolment and operational monitoring.
+This repository is a tested research/software fabric, not evidence of AGI or autonomous general intelligence. The trajectory optimiser is deterministic and objective-driven rather than a proof of globally optimal allocation. Monte Carlo results are only as meaningful as the supplied scenario distributions and simulator. Real production deployment still requires operational infrastructure such as hardened transport/TLS, credential lifecycle and revocation, deployment monitoring and physical multi-host acceptance testing.
