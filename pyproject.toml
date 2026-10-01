@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rsqs-distributed-pulse"
-version = "0.8.0"
-description = "Deterministic distributed state, temporal resilience, strategy optimisation and recoverable authorised action fabric"
+version = "0.9.0"
+description = "Operational deterministic distributed fabric with trust, resilience, bounded strategy search and target-agnostic adapters"
 requires-python = ">=3.10"
 dependencies = [
   "cryptography>=43.0"
