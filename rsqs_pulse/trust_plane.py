@@ -206,7 +206,8 @@ class TrustRegistry:
 
     def summary(self, *, now: int | None = None) -> dict:
         now = int(time.time()) if now is None else int(now)
-        active = len(self.active_nodes(now=now))
+        active_node_ids = self.active_nodes(now=now)
+        active = len(active_node_ids)
         revoked = int(self.conn.execute(
             "SELECT COUNT(*) FROM authority_grants WHERE revoked_at IS NOT NULL"
         ).fetchone()[0])
@@ -214,4 +215,9 @@ class TrustRegistry:
             "SELECT COUNT(*) FROM authority_grants WHERE revoked_at IS NULL AND expires_at<?",
             (now,),
         ).fetchone()[0])
-        return {"active_nodes": active, "revoked_grants": revoked, "expired_grants": expired}
+        return {
+            "active_nodes": active,
+            "active_node_ids": active_node_ids,
+            "revoked_grants": revoked,
+            "expired_grants": expired,
+        }
