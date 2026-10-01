@@ -36,6 +36,7 @@ from .resources import ResourceProfile
 from .routing import ResourceAwareRouter, RouteDecision
 from .runtime import FabricRuntime, RuntimeCycleResult, RuntimeTransition
 from .secure import SecureCoordinator, SecureNode
+from .scientific_engine import Hypothesis, ReplicationSummary, ScientificEngine, TrialKind, TrialRecord
 from .simulation import Simulator
 from .sovereign_cell import SovereignCell, SovereignCellRegistry
 from .state_reasoning import Constraint, State, Trajectory, TrajectoryPlanner, Transition
