@@ -1,58 +1,69 @@
-# RSQS Distributed State, Cognition and Action Fabric v0.5.0
+# RSQS Distributed State, Cognition and Action Fabric v0.6.0
 
-v0.5 adds the first hard multi-process distributed proof.
+v0.6 extends the executable fabric from distributed action into a causal-learning substrate.
 
-## Demonstrated path
+## New executable primitives
 
-```text
-COORDINATOR PROCESS
-  -> Ed25519 signed TASK
-  -> HTTP event transport
-  -> INDEPENDENT WORKER PROCESS
-  -> authority signature verification
-  -> target-node check
-  -> local capability policy
-  -> registered handler execution
-  -> worker-signed RESULT
-  -> HTTP event transport
-  -> coordinator worker-trust lookup
-  -> worker signature verification
-  -> persistent result + provenance
-```
+### Sovereign cells
 
-`scripts/distributed_process_demo.py` starts an HTTP event service plus two independent worker OS processes. Worker A doubles a value; Worker B triples it. The coordinator dispatches separately targeted tasks and asserts returned values.
+A `SovereignCell` is a recursively composable unit with explicit identity, type, authority scope, capabilities, resources, constraints and relationships. Discovery can filter both capability and authority scope.
 
-The proof then terminates Worker A, publishes work while it is unavailable, starts a new Worker A process against the same SQLite state, and verifies that its persisted event cursor causes the missed task to be consumed and a signed result returned. Finally the coordinator is reopened from disk and the previously verified results and provenance chain are checked again.
+### Causal transition memory
 
-A successful run ends with:
+`CausalMemory` persists observations of:
 
 ```text
-DISTRIBUTED_PROCESS_PROOF=PASS
+CAUSE + ACTION + CONTEXT + BEFORE STATE -> AFTER STATE
 ```
 
-## Security properties in this proof
+Supporting and opposing observations remain separate. The causal assessment reports both rather than collapsing disagreement.
 
-- task origin is Ed25519 verified by workers;
-- results are independently Ed25519 signed by workers;
-- coordinator accepts results only from explicitly trusted worker public keys;
-- tasks can target a specific node;
-- local capability policy remains authoritative;
-- unavailable/denied capability requests do not execute;
-- worker event cursors persist across restart;
-- coordinator results persist across restart;
-- provenance remains hash-chain verified;
-- no arbitrary remote shell is exposed.
+### Competing world models
 
-## Run the full proof
+Multiple `WorldModel` implementations can predict the same transition. Actual observed state is compared with every prediction. Prediction error is accumulated and model score changes from evidence rather than textual plausibility.
+
+### Deterministic experiment loop
+
+`LearningRuntime` joins experiments, competing models, causal evidence and hash-chained provenance:
+
+```text
+BEFORE STATE
+ -> competing predictions
+ -> authorised/controlled experiment
+ -> observed AFTER STATE
+ -> prediction error
+ -> model evidence update
+ -> causal transition evidence
+ -> provenance
+ -> next experiment
+```
+
+The test suite includes repeated observations that falsify a persistently bad model in favour of the model with lower prediction error.
+
+### Resource substitution
+
+`SubstitutionGraph` represents explicit resource alternatives, conversion ratios and constraints. This is a basis for later scarcity/bottleneck and resilience reasoning without assuming that similarly named resources are interchangeable.
+
+## Proof marker
+
+`scripts/cognitive_substrate_demo.py` runs repeated controlled state transitions and requires the better predictive model to emerge while causal observations and provenance accumulate.
+
+A successful execution ends with:
+
+```text
+COGNITIVE_SUBSTRATE_PROOF=PASS
+```
+
+## Complete local proof
 
 ```bash
 ./run_all.sh
 ```
 
-This runs all historical demos, the integrated single-runtime recovery proof, the new multi-process distributed proof and all unit/integration tests.
+This now includes historical pulse/network demonstrations, persistent runtime recovery, multi-process distributed task/result proof, causal-learning proof and the complete unit/integration test suite.
 
-## Current boundary
+## Boundaries
 
-v0.5 proves multiple independent processes communicating over a real HTTP socket on one host. It does **not** yet prove operation across separate physical machines. The same HTTP boundary is network-addressable, but a genuine multi-machine proof still requires deploying enrolled workers on separate hosts and running the same signed task/result/failure-recovery assertions across that boundary.
+The repository now contains executable mechanisms for distributed execution and deterministic causal/model learning. It does not yet establish general causal truth: causal evidence is observational/experimental evidence and must retain provenance, context and counterevidence.
 
-Production hardening also still requires TLS termination, a durable network event service, key storage/rotation/revocation, rate limiting, explicit enrolment tooling and operational monitoring.
+The physical multi-host acceptance test in `docs/MULTI_HOST_PROOF.md` remains unexecuted from this environment. Production deployment still requires durable network infrastructure, TLS, key lifecycle/revocation, explicit enrolment and operational monitoring.
