@@ -107,3 +107,83 @@ class BoundedTrajectorySearch:
             depth_reached=depth_reached,
             exhausted=exhausted,
         )
+
+
+@dataclass(frozen=True)
+class ExhaustiveSearchResult:
+    selected: TrajectoryCandidate | None
+    ranked: tuple[TrajectoryCandidate, ...]
+    explored: int
+    depth_reached: int
+    complete_within_bounds: bool
+    truncated_by_candidate_cap: bool
+
+
+class ExhaustiveTrajectorySearch:
+    """
+    Deterministic exhaustive search over the configured finite tree.
+
+    A selected candidate is only globally optimal *within the configured depth
+    and generated search space* when complete_within_bounds is True.
+    """
+
+    def __init__(
+        self,
+        optimizer: TrajectoryOptimizer | None = None,
+        config: SearchConfig | None = None,
+    ) -> None:
+        self.optimizer = optimizer or TrajectoryOptimizer()
+        self.config = config or SearchConfig()
+
+    def search(
+        self,
+        seeds: Iterable[TrajectoryCandidate],
+        expander: Callable[[TrajectoryCandidate, int], Iterable[TrajectoryCandidate]],
+        validator: Callable[[TrajectoryCandidate], bool],
+        metrics_provider: Callable[[TrajectoryCandidate], Mapping[str, float] | object],
+    ) -> ExhaustiveSearchResult:
+        queue: list[tuple[int, TrajectoryCandidate]] = [
+            (0, candidate)
+            for candidate in sorted(seeds, key=lambda item: item.trajectory_id)
+        ]
+        seen: set[str] = set()
+        valid: list[TrajectoryCandidate] = []
+        explored = 0
+        depth_reached = 0
+        truncated = False
+
+        while queue:
+            depth, candidate = queue.pop(0)
+            if candidate.trajectory_id in seen:
+                continue
+            if explored >= self.config.max_candidates:
+                truncated = True
+                break
+            seen.add(candidate.trajectory_id)
+            explored += 1
+            evaluated = self.optimizer.evaluate(
+                candidate,
+                validator,
+                metrics_provider,
+            )
+            if not evaluated.validated:
+                continue
+            valid.append(evaluated)
+            depth_reached = max(depth_reached, depth)
+            if depth >= self.config.max_depth:
+                continue
+            children = sorted(
+                expander(evaluated, depth + 1),
+                key=lambda item: item.trajectory_id,
+            )
+            queue.extend((depth + 1, child) for child in children)
+
+        ranked = tuple(self.optimizer.rank(valid))
+        return ExhaustiveSearchResult(
+            selected=ranked[0] if ranked else None,
+            ranked=ranked,
+            explored=explored,
+            depth_reached=depth_reached,
+            complete_within_bounds=not truncated,
+            truncated_by_candidate_cap=truncated,
+        )
