@@ -83,6 +83,9 @@ class NetworkResilienceTests(unittest.TestCase):
         )
         self.assertFalse(plan.viable)
         self.assertEqual(plan.failed_targets, ("irrigate",))
+        self.assertEqual(plan.failed_capabilities, ("irrigate", "pump"))
+        self.assertEqual(plan.unresolved[0][0], "pump")
+        self.assertEqual(plan.unresolved[0][1].resource, "electricity")
 
     def test_substitution_can_recover_upstream_dependency(self):
         state, inventory = self.make_inventory()
