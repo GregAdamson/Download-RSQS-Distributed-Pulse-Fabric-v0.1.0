@@ -1,6 +1,6 @@
 # RSQS Distributed Pulse Fabric v0.2.0
 
-An opt-in distributed cognitive execution fabric built around authenticated global pulses, local policy, capability discovery, task graphs, temporary swarms, persistent state, provenance and offline reconciliation.
+An opt-in distributed cognitive execution fabric built around authenticated global pulses, deterministic intent compilation, local policy, capability discovery, resource-aware routing, task graphs, temporary swarms, persistent world state, provenance, signed agent manifests, subscriptions and offline reconciliation.
 
 The repository does not implement Internet scanning, self-propagation, credential bypass, arbitrary remote shell execution, or installation on non-enrolled machines.
 
@@ -10,16 +10,19 @@ The repository does not implement Internet scanning, self-propagation, credentia
 human or machine intent
         |
         v
-semantic/task graph
+deterministic intent compiler
         |
         v
-simulation / admission
+task DAG + simulation/admission
+        |
+        v
+capability registry + resource router
         |
         v
 Ed25519 signed pulse authority
         |
         v
-federated transport namespace
+federated event/subscription namespace
         |
    +----+----+----------------+
    |         |                |
@@ -37,72 +40,80 @@ execution  execution        execution
 results + evidence + provenance
              |
              v
-persistent epoch / world-state inputs
+versioned world state
 ```
 
-## v0.2 capabilities
+## Implemented capabilities
 
-- Ed25519 authority and node identity primitives.
-- Persistent SQLite epoch, capability, result and offline-event state.
-- Hash-chained provenance ledger with verification.
-- Distributed capability advertisement and deterministic provider selection.
+- Ed25519 authority and node identities.
+- Persistent SQLite epochs, capability advertisements, task results and offline events.
+- Hash-chained tamper-evident provenance.
+- Capability discovery and deterministic provider filtering.
+- Resource/health profiles and resource-aware routing.
 - Dependency-checked task DAGs and topological execution.
-- Temporary capability swarms.
+- Deterministic intent-to-task compilation.
+- Temporary swarms assembled from required capabilities.
 - Fail-closed quorum rules.
 - Pre-execution simulation/admission mode.
-- Federated topic scopes for institution/region/global namespaces.
-- Ordered offline journaling and reconciliation.
+- Signed content-addressed agent manifests.
+- Event subscriptions with explicit pulse-kind filters.
+- Versioned world-state facts with source and confidence.
+- Federated institution/region/global topic scopes.
+- Ordered offline store-and-forward reconciliation.
 - Existing local policy precedence: local deny always wins.
 - Backward-compatible v0.1 HMAC demo retained for comparison.
 
-## Components
+## Major modules
 
-- `rsqs_pulse/identity.py` - Ed25519 identity and signature verification.
-- `rsqs_pulse/secure.py` - signed coordinator and secure node runtime.
-- `rsqs_pulse/persistent.py` - SQLite state.
-- `rsqs_pulse/provenance.py` - append-only hash-chain audit ledger.
-- `rsqs_pulse/capabilities.py` - capability registry.
-- `rsqs_pulse/taskgraph.py` - deterministic task graphs.
-- `rsqs_pulse/swarm.py` - temporary swarm assembly.
-- `rsqs_pulse/quorum.py` - quorum admission.
-- `rsqs_pulse/simulation.py` - dry-run policy/admission analysis.
-- `rsqs_pulse/federation.py` - hierarchical namespace boundaries.
-- `rsqs_pulse/offline.py` - store-and-forward reconciliation.
-- `scripts/demo_v02.py` - integrated v0.2 demonstration.
-- `tests/test_v02.py` - v0.2 security and systems tests.
+- `identity.py` - Ed25519 identity.
+- `secure.py` - secure coordinator and node runtime.
+- `persistent.py` - SQLite state.
+- `provenance.py` - hash-chain audit ledger.
+- `capabilities.py` - capability advertisements.
+- `resources.py` / `routing.py` - health/resource-aware routing.
+- `taskgraph.py` - deterministic task DAG.
+- `intent.py` - deterministic intent compiler.
+- `swarm.py` - temporary swarm assembly.
+- `quorum.py` - quorum admission.
+- `simulation.py` - dry-run analysis.
+- `manifests.py` - signed agent manifests and content addresses.
+- `subscriptions.py` - filtered event delivery.
+- `world_state.py` - versioned shared state.
+- `federation.py` - hierarchical namespaces.
+- `offline.py` - reconciliation journal.
 
 ## Security invariants
 
-- Unsigned or incorrectly signed secure pulses are rejected.
+- Incorrectly signed secure pulses are rejected.
 - Epochs cannot move backwards at a node.
 - Expired pulses are rejected.
 - Local policy can veto any distributed request.
-- Only registered capability handlers can execute.
-- Task graph cycles fail before execution.
-- Quorum mode fails closed when minimum participation is absent.
-- Provenance is tamper-evident.
-- Offline events reconcile in sequence.
+- Only registered capability handlers execute.
+- Task-graph cycles fail before execution.
+- Quorum mode fails closed when participation is insufficient.
+- Provenance alteration is detectable.
+- Agent manifests are verified before trust.
+- Offline events reconcile in order.
+- Unhealthy nodes are excluded from resource routing.
 - No arbitrary shell execution is exposed by the fabric.
 
 ## Run
 
 ```bash
 python3 -m pip install -e .
-python3 scripts/demo.py
-python3 scripts/demo_v02.py
-python3 -m unittest discover -s tests -v
-```
-
-Or:
-
-```bash
 ./run_all.sh
 ```
 
-## Production transport boundary
+The full test command is:
 
-The coordination semantics are transport-independent. The included broker remains deterministic and local for tests. A production deployment can implement the same publish/subscribe contract over NATS, MQTT, HTTPS/SSE, Redis Streams or Kafka while retaining signature verification and local policy at every node.
+```bash
+python3 -m unittest discover -s tests -v
+```
 
-## Next production hardening
+## Deployment boundary
 
-The v0.2 fabric establishes the distributed control plane. Production deployment should add certificate rotation/revocation, persistent transport adapters, encrypted node-to-node channels, resource/health telemetry, schema-version negotiation, rate limiting, multi-authority trust policy, and deployment-specific secret/key storage.
+The bundled transport is deliberately deterministic and local. Production adapters can map the same semantics onto NATS, MQTT, HTTPS/SSE, Redis Streams or Kafka. Signature verification, local authorization, federation scope and capability admission remain node-side regardless of transport.
+
+## Remaining production hardening
+
+Production deployment still requires deployment-specific key storage, certificate/key rotation and revocation, encrypted transport configuration, rate limiting, schema negotiation, durable broker adapters, multi-authority trust configuration and operational monitoring. Those are deployment concerns rather than hidden permissions in the fabric.
