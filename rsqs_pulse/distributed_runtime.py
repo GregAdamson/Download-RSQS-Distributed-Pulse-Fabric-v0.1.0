@@ -3,7 +3,7 @@ import json
 import time
 import uuid
 from dataclasses import asdict, dataclass
-from typing import Any, Callable, Dict
+from typing import TYPE_CHECKING, Any, Callable, Dict
 
 from .http_transport import HTTPTransportClient
 from .identity import NodeIdentity, PublicIdentity
@@ -12,6 +12,9 @@ from .persistent import SQLiteState
 from .policy import LocalPolicy
 from .provenance import ProvenanceLedger
 from .secure import pulse_bytes
+
+if TYPE_CHECKING:
+    from .trust_plane import TrustRegistry
 
 
 def canonical_bytes(value: Dict[str, Any]) -> bytes:
@@ -121,12 +124,14 @@ class DistributedCoordinator:
         state_path: str,
         transport: HTTPTransportClient,
         trusted_workers: Dict[str, PublicIdentity],
+        trust_registry: "TrustRegistry | None" = None,
     ) -> None:
         self.network = network
         self.identity = identity
         self.state = SQLiteState(state_path)
         self.transport = transport
         self.trusted_workers = dict(trusted_workers)
+        self.trust_registry = trust_registry
         self.ledger = ProvenanceLedger(self.state.conn)
         self.cursor = int(self.state.get_meta("coordinator_cursor", "0") or "0")
         self.epoch = int(self.state.get_meta("coordinator_epoch", "0") or "0")
@@ -148,6 +153,8 @@ class DistributedCoordinator:
         self.state.conn.commit()
 
     def dispatch(self, target_node: str, capability: str, args: Dict[str, Any], ttl_seconds: int = 120) -> str:
+        if self.trust_registry is not None and not self.trust_registry.authorise(target_node, capability):
+            raise PermissionError(f"target node is not authorised for capability: {target_node}:{capability}")
         self.epoch += 1
         self.state.set_meta("coordinator_epoch", str(self.epoch))
         task_id = str(uuid.uuid4())
@@ -178,7 +185,12 @@ class DistributedCoordinator:
                 result = SignedResult(**raw)
             except TypeError:
                 continue
-            public = self.trusted_workers.get(result.node_id)
+            if self.trust_registry is not None:
+                if not self.trust_registry.authorise(result.node_id, result.capability):
+                    continue
+                public = self.trust_registry.identity(result.node_id)
+            else:
+                public = self.trusted_workers.get(result.node_id)
             if public is None or not NodeIdentity.verify(public, canonical_bytes(result.unsigned()), result.signature):
                 continue
             self.state.conn.execute(
