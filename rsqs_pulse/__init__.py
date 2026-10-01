@@ -37,6 +37,7 @@ from .persistent_identity import load_identity, load_or_create_identity
 from .policy import LocalPolicy
 from .provenance import ProvenanceLedger
 from .quorum import QuorumRule
+from .reality_observation import PhysicalObservation, RealityObservationRegistry, RealityVariance
 from .reconciliation import OperationState, OperationStatus, Reconciler, ReconciliationDecision
 from .reconciled_worker import ReconciledDistributedWorker
 from .recoverable_worker import RecoverableDistributedWorker
