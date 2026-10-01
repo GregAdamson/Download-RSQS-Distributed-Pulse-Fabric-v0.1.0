@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from rsqs_pulse.broker import InMemoryBroker
 from rsqs_pulse.capabilities import CapabilityAdvertisement, CapabilityRegistry
 from rsqs_pulse.federation import FederationScope, within_scope
+from rsqs_pulse.http_transport import HTTPTransportClient, PulseHTTPServer
 from rsqs_pulse.identity import NodeIdentity
 from rsqs_pulse.intent import DeterministicIntentCompiler, IntentStep
 from rsqs_pulse.manifests import AgentManifest, sign_manifest, verify_manifest
@@ -17,7 +18,7 @@ from rsqs_pulse.provenance import ProvenanceLedger
 from rsqs_pulse.quorum import QuorumRule
 from rsqs_pulse.resources import ResourceProfile
 from rsqs_pulse.routing import ResourceAwareRouter
-from rsqs_pulse.secure import SecureCoordinator, SecureNode
+from rsqs_pulse.secure import SecureCoordinator, SecureNode, pulse_bytes
 from rsqs_pulse.simulation import Simulator
 from rsqs_pulse.subscriptions import Subscription, SubscriptionRouter
 from rsqs_pulse.swarm import SwarmPlanner
@@ -169,6 +170,32 @@ class V02Tests(unittest.TestCase):
         g2 = compiler.compile("intent-1", steps)
         self.assertEqual([x.task_id for x in g1.topological_order()], [x.task_id for x in g2.topological_order()])
         self.assertEqual(g1.topological_order()[1].depends_on, (g1.topological_order()[0].task_id,))
+
+    def test_http_transport_publish_and_poll(self):
+        server = PulseHTTPServer("127.0.0.1", 0, "token")
+        server.start()
+        host, port = server.address
+        try:
+            authority = NodeIdentity("authority")
+            unsigned = Pulse.new("net", 1, "WAKE", {"x": 1})
+            signed = Pulse(
+                unsigned.pulse_id,
+                unsigned.network,
+                unsigned.epoch,
+                unsigned.kind,
+                unsigned.issued_at,
+                unsigned.expires_at,
+                unsigned.payload,
+                authority.sign(pulse_bytes(unsigned)),
+            )
+            publisher = HTTPTransportClient(f"http://{host}:{port}", "token")
+            reader = HTTPTransportClient(f"http://{host}:{port}")
+            self.assertEqual(publisher.publish(signed), 1)
+            cursor, events = reader.poll()
+            self.assertEqual(cursor, 1)
+            self.assertEqual(events[0].signature, signed.signature)
+        finally:
+            server.close()
 
 
 if __name__ == "__main__":
