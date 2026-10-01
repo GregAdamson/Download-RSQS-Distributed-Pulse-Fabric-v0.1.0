@@ -84,6 +84,7 @@ class Transfer:
 class PeriodResult:
     period: int
     operational_capabilities: tuple[str, ...]
+    service_levels: tuple[tuple[str, float], ...]
     failed_capabilities: tuple[str, ...]
     allocations: tuple[TemporalAllocation, ...]
     transfers_departed: tuple[Transfer, ...]
@@ -195,7 +196,7 @@ class TemporalAllocationPlanner:
 
             self._preposition_for_future(
                 period, horizon, demand_list, graph, stock, links,
-                link_capacity_used, arrivals,
+                link_capacity_used, arrivals, replenishment_map,
             )
 
             departed = []
@@ -208,6 +209,7 @@ class TemporalAllocationPlanner:
                 PeriodResult(
                     period=period,
                     operational_capabilities=tuple(sorted(service_levels)),
+                    service_levels=tuple(sorted(service_levels.items())),
                     failed_capabilities=tuple(sorted(failed)),
                     allocations=tuple(allocations),
                     transfers_departed=tuple(sorted(
@@ -360,30 +362,49 @@ class TemporalAllocationPlanner:
         links: Sequence[TransportLink],
         link_capacity_used: Dict[tuple[int, int], float],
         arrivals: Dict[int, List[Transfer]],
+        replenishment_map: Dict[int, List[Replenishment]],
     ) -> None:
-        future_needs: Dict[tuple[int, str, str, str, float], float] = {}
+        future_service: Dict[tuple[int, str], float] = {}
         for demand in demands:
             for demand_period in demand.periods:
                 if demand_period <= period or demand_period >= horizon:
                     continue
-                self._accumulate_needs(
+                self._accumulate_service_levels(
                     demand.capability, demand_period, demand.minimum_service,
-                    graph, future_needs, set()
+                    graph, future_service, set()
                 )
+
+        future_needs: Dict[tuple[int, str, str, str, float], float] = {}
+        for (demand_period, capability), service in sorted(future_service.items()):
+            for req in graph.resource_requirements.get(capability, []):
+                if not req.critical or req.location is None:
+                    continue
+                key = (demand_period, req.resource, req.unit, req.location, req.minimum_quality)
+                future_needs[key] = future_needs.get(key, 0.0) + req.quantity * service
 
         for index, link in enumerate(links):
             arrival_period = period + link.lead_time_periods
             if arrival_period <= period or arrival_period >= horizon:
                 continue
-            candidate_needs = [
-                (key, quantity) for key, quantity in future_needs.items()
-                if key[0] == arrival_period and key[1] == link.resource
-                and key[2] == link.unit and key[3] == link.destination
-            ]
+            candidate_needs = []
+            for key, quantity in future_needs.items():
+                if key[0] != arrival_period or key[2] != link.unit or key[3] != link.destination:
+                    continue
+                requested_resource = key[1]
+                ratio = None
+                if requested_resource == link.resource:
+                    ratio = 1.0
+                else:
+                    for alt in self.substitutions.alternatives(requested_resource):
+                        if alt.substitute == link.resource:
+                            ratio = alt.ratio
+                            break
+                if ratio is not None:
+                    candidate_needs.append((key, quantity, ratio))
             if not candidate_needs:
                 continue
-            minimum_quality = max(key[4] for key, _ in candidate_needs)
-            required = max(quantity for _, quantity in candidate_needs)
+            minimum_quality = max(key[4] for key, _, _ in candidate_needs)
+            required = sum(quantity * ratio for _, quantity, ratio in candidate_needs)
             if required <= 1e-12:
                 continue
 
@@ -400,7 +421,17 @@ class TemporalAllocationPlanner:
                 if resource == link.resource and unit == link.unit
                 and location == link.destination and quality >= minimum_quality
             )
-            shortage = max(0.0, required - local - already_arriving)
+            scheduled_replenishment = sum(
+                item.quantity
+                for future_period in range(period + 1, arrival_period + 1)
+                for item in replenishment_map.get(future_period, [])
+                if item.resource == link.resource and item.unit == link.unit
+                and item.location == link.destination and item.quality >= minimum_quality
+            )
+            shortage = max(
+                0.0,
+                required - local - scheduled_replenishment - already_arriving,
+            )
             if shortage <= 1e-12:
                 continue
 
@@ -455,26 +486,24 @@ class TemporalAllocationPlanner:
                     )
                 )
 
-    def _accumulate_needs(
+    def _accumulate_service_levels(
         self,
         capability: str,
         period: int,
         minimum_service: float,
         graph: DependencyGraph,
-        needs: Dict[tuple[int, str, str, str, float], float],
+        service_levels: Dict[tuple[int, str], float],
         visited: set[str],
     ) -> None:
+        key = (period, capability)
+        service_levels[key] = max(service_levels.get(key, 0.0), minimum_service)
         if capability in visited:
             return
         visited = set(visited)
         visited.add(capability)
-        for req in graph.resource_requirements.get(capability, []):
-            if not req.critical or req.location is None:
-                continue
-            key = (period, req.resource, req.unit, req.location, req.minimum_quality)
-            needs[key] = max(needs.get(key, 0.0), req.quantity * minimum_service)
         for dependency in graph.capability_requirements.get(capability, []):
             if dependency.critical:
-                self._accumulate_needs(
-                    dependency.capability, period, minimum_service, graph, needs, visited
+                self._accumulate_service_levels(
+                    dependency.capability, period, minimum_service,
+                    graph, service_levels, visited
                 )
