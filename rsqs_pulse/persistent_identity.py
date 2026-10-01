@@ -4,12 +4,19 @@ import os
 from pathlib import Path
 from .identity import NodeIdentity
 
+def load_identity(node_id: str, path: str) -> NodeIdentity:
+    target = Path(path)
+    if not target.exists():
+        raise FileNotFoundError(path)
+    raw = base64.b64decode(target.read_text(encoding="ascii").strip())
+    return NodeIdentity.from_private_bytes(node_id, raw)
+
+
 def load_or_create_identity(node_id: str, path: str) -> NodeIdentity:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     if target.exists():
-        raw = base64.b64decode(target.read_text(encoding="ascii").strip())
-        return NodeIdentity.from_private_bytes(node_id, raw)
+        return load_identity(node_id, path)
     identity = NodeIdentity(node_id)
     raw = identity.private_bytes_raw()
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
