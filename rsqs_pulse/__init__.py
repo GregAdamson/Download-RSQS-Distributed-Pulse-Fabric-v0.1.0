@@ -41,6 +41,8 @@ from .resource_state import ResourceInventory, ResourceLot
 from .resources import ResourceProfile
 from .resilience import ResiliencePlan, ResiliencePlanner, ScarcityAnalyzer, ScarcityFinding, SubstitutionAllocation
 from .resilience_objectives import ResilienceMetrics, ResilienceObjective, ResilienceWeights
+from .resilience_oracle import ResilienceOracle, ResilienceOracleReport
+from .resilience_store import ResilienceStore
 from .routing import ResourceAwareRouter, RouteDecision
 from .runtime import FabricRuntime, RuntimeCycleResult, RuntimeTransition
 from .secure import SecureCoordinator, SecureNode
