@@ -22,6 +22,7 @@ from rsqs_pulse.http_transport import HTTPTransportClient, PulseHTTPServer
 from rsqs_pulse.identity import NodeIdentity
 from rsqs_pulse.institutional_rules import InstitutionalRuleStore
 from rsqs_pulse.model import Pulse
+from rsqs_pulse.observability import FabricObserver
 from rsqs_pulse.persistent import SQLiteState
 from rsqs_pulse.policy import LocalPolicy
 from rsqs_pulse.runtime import FabricRuntime
