@@ -22,6 +22,7 @@ from .quorum import QuorumRule
 from .resource_exchange import ResourceExchange, ResourceMatch, ResourceNeed, ResourceOffer
 from .resources import ResourceProfile
 from .routing import ResourceAwareRouter, RouteDecision
+from .runtime import FabricRuntime, RuntimeCycleResult, RuntimeTransition
 from .secure import SecureCoordinator, SecureNode
 from .simulation import Simulator
 from .state_reasoning import Constraint, State, Trajectory, TrajectoryPlanner, Transition
