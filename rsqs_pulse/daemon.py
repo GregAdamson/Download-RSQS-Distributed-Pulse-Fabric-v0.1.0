@@ -4,15 +4,24 @@ import json
 import signal
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
+from .observability import FabricObserver
 from .policy import LocalPolicy
 from .runtime import FabricRuntime
 
 
 class RuntimeHTTPDaemon:
-    def __init__(self, runtime: FabricRuntime, host: str, port: int) -> None:
+    def __init__(
+        self,
+        runtime: FabricRuntime,
+        host: str,
+        port: int,
+        *,
+        observer: FabricObserver | None = None,
+    ) -> None:
         self.runtime = runtime
+        self.observer = observer or FabricObserver(runtime)
         outer = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -37,9 +46,16 @@ class RuntimeHTTPDaemon:
                 if self.path == "/capabilities":
                     self._send(200, {"capabilities": sorted(outer.runtime.handlers)})
                     return
+                if self.path == "/observability":
+                    self._send(200, outer.observer.as_dict())
+                    return
+                if self.path == "/operations":
+                    snapshot = outer.observer.snapshot()
+                    self._send(200, {"operations": list(snapshot.unresolved_operations)})
+                    return
                 self._send(404, {"error": "not_found"})
 
-        self.httpd = ThreadingHTTPServer((host, port), Handler)
+        self.httpd = HTTPServer((host, port), Handler)
 
     @property
     def address(self):
