@@ -3,6 +3,7 @@ from .capabilities import CapabilityAdvertisement, CapabilityRegistry
 from .cognitive_loop import ActionDecision, CognitiveLoop, Observation
 from .coordinator import Coordinator
 from .dal import DALEdge, DALGraph, DALNode
+from .distributed_runtime import DistributedCoordinator, DistributedWorker, SignedResult
 from .federation import FederationScope, within_scope
 from .fractal import FabricDescriptor, FabricRegistry
 from .http_transport import HTTPTransportClient, PulseEventStore, PulseHTTPServer
