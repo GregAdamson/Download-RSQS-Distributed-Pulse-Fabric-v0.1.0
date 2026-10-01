@@ -1,70 +1,58 @@
-# RSQS Distributed State, Cognition and Action Fabric v0.4.0
+# RSQS Distributed State, Cognition and Action Fabric v0.5.0
 
-v0.4 is the vertical-integration release. The repository now contains a persistent runtime that actually joins the earlier architectural components into a state-to-action cycle rather than leaving them only as independent primitives.
+v0.5 adds the first hard multi-process distributed proof.
 
-## Executable runtime loop
-
-```text
-OBSERVATION
-  -> PERSISTED WORLD STATE
-  -> TRAJECTORY SEARCH
-  -> CONSTRAINT CHECKING
-  -> CAPABILITY AVAILABILITY
-  -> LOCAL POLICY AUTHORISATION
-  -> REGISTERED CAPABILITY EXECUTION
-  -> ACTION RECEIPT
-  -> WORLD-STATE UPDATE
-  -> HASH-CHAINED PROVENANCE
-  -> PERSISTED CYCLE RESULT
-  -> RESTART / RECOVERY
-```
-
-`FabricRuntime` is the integrated process. It owns persistent SQLite state, world state, capability registration, DAL observations, trajectory reasoning, local authorisation, action execution, cycle/action records and provenance.
-
-## Daemon
-
-Installation exposes:
-
-```bash
-rsqs-fabricd --node-id node-a --state ./state/node-a.db --port 8787
-```
-
-The daemon exposes read-only operational endpoints:
+## Demonstrated path
 
 ```text
-GET /health
-GET /state
-GET /capabilities
+COORDINATOR PROCESS
+  -> Ed25519 signed TASK
+  -> HTTP event transport
+  -> INDEPENDENT WORKER PROCESS
+  -> authority signature verification
+  -> target-node check
+  -> local capability policy
+  -> registered handler execution
+  -> worker-signed RESULT
+  -> HTTP event transport
+  -> coordinator worker-trust lookup
+  -> worker signature verification
+  -> persistent result + provenance
 ```
 
-No arbitrary shell or generic remote execution endpoint is provided.
+`scripts/distributed_process_demo.py` starts an HTTP event service plus two independent worker OS processes. Worker A doubles a value; Worker B triples it. The coordinator dispatches separately targeted tasks and asserts returned values.
 
-## Proof paths
+The proof then terminates Worker A, publishes work while it is unavailable, starts a new Worker A process against the same SQLite state, and verifies that its persisted event cursor causes the missed task to be consumed and a signed result returned. Finally the coordinator is reopened from disk and the previously verified results and provenance chain are checked again.
 
-`scripts/runtime_demo.py` executes a complete multi-step trajectory, persists the resulting world state, closes the process, opens a fresh runtime against the same database and demonstrates recovered state.
+A successful run ends with:
 
-`tests/test_runtime_integration.py` verifies:
+```text
+DISTRIBUTED_PROCESS_PROOF=PASS
+```
 
-- a complete observation-to-action cycle;
-- multiple actions in a trajectory;
-- world-state persistence;
-- restart recovery;
-- provenance-chain validity;
-- local policy denial;
-- unavailable-capability denial.
+## Security properties in this proof
 
-The earlier distributed layers remain present: Ed25519 pulse identities, HTTP pulse transport, capability registry, task DAGs, resource routing, swarms, temporary institutions, Oracle evidence aggregation, resource exchange, signed agent manifests, federation scopes, subscriptions, offline reconciliation and recursive fabric descriptors.
+- task origin is Ed25519 verified by workers;
+- results are independently Ed25519 signed by workers;
+- coordinator accepts results only from explicitly trusted worker public keys;
+- tasks can target a specific node;
+- local capability policy remains authoritative;
+- unavailable/denied capability requests do not execute;
+- worker event cursors persist across restart;
+- coordinator results persist across restart;
+- provenance remains hash-chain verified;
+- no arbitrary remote shell is exposed.
 
-## Run everything
+## Run the full proof
 
 ```bash
 ./run_all.sh
 ```
 
-That command installs the package, runs the legacy demonstrations, network transport demonstration, integrated runtime demonstration and the complete unit-test suite.
+This runs all historical demos, the integrated single-runtime recovery proof, the new multi-process distributed proof and all unit/integration tests.
 
 ## Current boundary
 
-v0.4 is an integrated single-runtime build plus network transport primitives. The next proof milestone is a multi-process/multi-machine integration harness in which separately running enrolled nodes receive signed tasks, execute locally authorised capabilities, return signed results, survive node failure and reconcile after restart.
+v0.5 proves multiple independent processes communicating over a real HTTP socket on one host. It does **not** yet prove operation across separate physical machines. The same HTTP boundary is network-addressable, but a genuine multi-machine proof still requires deploying enrolled workers on separate hosts and running the same signed task/result/failure-recovery assertions across that boundary.
 
-Production Internet deployment additionally requires TLS termination, durable broker infrastructure, deployment-specific key storage and rotation/revocation, rate limiting, explicit enrolment and operational monitoring.
+Production hardening also still requires TLS termination, a durable network event service, key storage/rotation/revocation, rate limiting, explicit enrolment tooling and operational monitoring.
