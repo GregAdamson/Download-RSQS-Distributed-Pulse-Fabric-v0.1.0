@@ -142,7 +142,7 @@ class ScientificEngine:
         rows = self.conn.execute(
             """SELECT trial_id,kind,before_json,after_json,intervention_json,controls_json,
                       confounders_json,supports,confidence,source,observed_at
-               FROM scientific_trials WHERE hypothesis_id=? ORDER BY observed_at,trial_id""",
+               FROM scientific_trials WHERE hypothesis_id=? ORDER BY observed_at,rowid""",
             (hypothesis_id,),
         ).fetchall()
         return [
