@@ -12,7 +12,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Run demo
+      - name: Install
+        run: python3 -m pip install -e .
+      - name: Run v0.1 demo
         run: python3 scripts/demo.py
+      - name: Run v0.2 demo
+        run: python3 scripts/demo_v02.py
       - name: Run unit tests
         run: python3 -m unittest discover -s tests -v
