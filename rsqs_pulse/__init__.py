@@ -5,6 +5,7 @@ from .cognitive_loop import ActionDecision, CognitiveLoop, Observation
 from .coordinator import Coordinator
 from .dal import DALEdge, DALGraph, DALNode
 from .distributed_runtime import DistributedCoordinator, DistributedWorker, SignedResult
+from .dependency_graph import CapabilityRequirement, CapabilityStatus, DependencyGraph, ResourceRequirement
 from .durable_transport import DurablePulseEventStore
 from .experiments import DeterministicExperimentLoop, Experiment, ExperimentResult
 from .federation import FederationScope, within_scope
@@ -32,7 +33,9 @@ from .reconciliation import OperationState, OperationStatus, Reconciler, Reconci
 from .reconciled_worker import ReconciledDistributedWorker
 from .recoverable_worker import RecoverableDistributedWorker
 from .resource_exchange import ResourceExchange, ResourceMatch, ResourceNeed, ResourceOffer
+from .resource_state import ResourceInventory, ResourceLot
 from .resources import ResourceProfile
+from .resilience import ResiliencePlan, ResiliencePlanner, ScarcityAnalyzer, ScarcityFinding, SubstitutionAllocation
 from .routing import ResourceAwareRouter, RouteDecision
 from .runtime import FabricRuntime, RuntimeCycleResult, RuntimeTransition
 from .secure import SecureCoordinator, SecureNode
