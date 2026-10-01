@@ -177,3 +177,71 @@ class CompositeDomainAdapter:
             tuple(rules),
             tuple(provenance),
         )
+
+
+def apply_adapter_batch(
+    batch: AdapterBatch,
+    *,
+    runtime=None,
+    inventory=None,
+    graph=None,
+    rule_sink: Callable[[CanonicalRule], None] | None = None,
+) -> dict[str, int]:
+    if runtime is not None and batch.observations:
+        from .cognitive_loop import Observation
+        for item in batch.observations:
+            runtime.observe([Observation(item.source, {item.key: item.value})])
+
+    if inventory is not None:
+        for item in batch.resources:
+            inventory.observe(
+                item.resource,
+                item.quantity,
+                item.unit,
+                item.location,
+                item.source,
+                quality=item.quality,
+                owner=item.owner,
+            )
+
+    if graph is not None:
+        from .dependency_graph import CapabilityRequirement, ResourceRequirement
+        for item in batch.dependencies:
+            if item.resource is not None:
+                if item.quantity is None or item.unit is None:
+                    raise ValueError(
+                        "resource dependency requires quantity and unit"
+                    )
+                graph.require_resource(
+                    item.capability,
+                    ResourceRequirement(
+                        item.resource,
+                        float(item.quantity),
+                        item.unit,
+                        critical=item.critical,
+                    ),
+                )
+            elif item.dependency_capability is not None:
+                graph.require_capability(
+                    item.capability,
+                    CapabilityRequirement(
+                        item.dependency_capability,
+                        critical=item.critical,
+                    ),
+                )
+            else:
+                raise ValueError(
+                    "dependency requires resource or dependency_capability"
+                )
+
+    if rule_sink is not None:
+        for item in batch.rules:
+            rule_sink(item)
+
+    return {
+        "observations": len(batch.observations),
+        "resources": len(batch.resources),
+        "dependencies": len(batch.dependencies),
+        "rules": len(batch.rules),
+        "provenance": len(batch.provenance),
+    }
