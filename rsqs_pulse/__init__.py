@@ -21,6 +21,7 @@ from .manifests import AgentManifest, sign_manifest, verify_manifest
 from .model_store import WorldModelStore
 from .model import Capability, Pulse, Task, TaskResult
 from .node import Node
+from .network_resilience import CapabilityRecovery, NetworkAllocation, NetworkResiliencePlan, NetworkResiliencePlanner, RecoveryTarget, ResourceShock
 from .offline import OfflineJournal
 from .operation_ledger import LedgerState, OperationLedger, OperationRecord
 from .oracle import DistributedOracle, EvidenceClaim, OracleAssessment
