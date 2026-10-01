@@ -5,6 +5,7 @@ from .cognitive_loop import ActionDecision, CognitiveLoop, Observation
 from .coordinator import Coordinator
 from .dal import DALEdge, DALGraph, DALNode
 from .distributed_runtime import DistributedCoordinator, DistributedWorker, SignedResult
+from .dependency_centrality import DependencyCentralityAnalyzer, DependencyFinding
 from .dependency_graph import CapabilityRequirement, CapabilityStatus, DependencyGraph, ResourceRequirement
 from .durable_transport import DurablePulseEventStore
 from .experiments import DeterministicExperimentLoop, Experiment, ExperimentResult
@@ -16,11 +17,13 @@ from .idempotency import IdempotencyJournal
 from .institutional_api import InstitutionalCapability, InstitutionalGateway
 from .institutions import InstitutionAssembler, InstitutionMember, RoleRequirement, TemporaryInstitution
 from .intent import DeterministicIntentCompiler, IntentStep
+from .learning_reconciliation import LearningReconciliation, ReconciliationRecord
 from .learning_runtime import LearningResult, LearningRuntime
 from .manifests import AgentManifest, sign_manifest, verify_manifest
 from .model_store import WorldModelStore
 from .model import Capability, Pulse, Task, TaskResult
 from .node import Node
+from .monte_carlo_resilience import MonteCarloResilienceEngine, ScenarioOutcome, ShockScenario
 from .network_resilience import CapabilityRecovery, NetworkAllocation, NetworkResiliencePlan, NetworkResiliencePlanner, RecoveryTarget, ResourceShock
 from .offline import OfflineJournal
 from .operation_ledger import LedgerState, OperationLedger, OperationRecord
