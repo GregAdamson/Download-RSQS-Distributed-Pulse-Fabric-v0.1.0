@@ -1,57 +1,108 @@
-# RSQS Distributed Pulse Fabric
+# RSQS Distributed Pulse Fabric v0.2.0
 
-A deterministic, opt-in distributed execution fabric built around signed global pulses.
+An opt-in distributed cognitive execution fabric built around authenticated global pulses, local policy, capability discovery, task graphs, temporary swarms, persistent state, provenance and offline reconciliation.
 
-## Core model
+The repository does not implement Internet scanning, self-propagation, credential bypass, arbitrary remote shell execution, or installation on non-enrolled machines.
 
-1. A Pulse Authority emits a signed event.
-2. Enrolled nodes poll or subscribe to the event stream.
-3. Each node verifies signature, freshness, epoch monotonicity, and local policy.
-4. Nodes advertise capabilities.
-5. Eligible nodes accept tasks and execute only locally permitted handlers.
-6. Results are returned with provenance.
-7. The coordinator advances shared state by epoch.
+## Architecture
 
-This prototype intentionally does not self-propagate, scan the Internet, bypass authentication, or install itself on arbitrary hosts.
+```text
+human or machine intent
+        |
+        v
+semantic/task graph
+        |
+        v
+simulation / admission
+        |
+        v
+Ed25519 signed pulse authority
+        |
+        v
+federated transport namespace
+        |
+   +----+----+----------------+
+   |         |                |
+ node A    node B           node C
+   |         |                |
+local      local            local
+policy     policy           policy
+   |         |                |
+capability capability       capability
+execution  execution        execution
+   |         |                |
+   +---------+----------------+
+             |
+             v
+results + evidence + provenance
+             |
+             v
+persistent epoch / world-state inputs
+```
+
+## v0.2 capabilities
+
+- Ed25519 authority and node identity primitives.
+- Persistent SQLite epoch, capability, result and offline-event state.
+- Hash-chained provenance ledger with verification.
+- Distributed capability advertisement and deterministic provider selection.
+- Dependency-checked task DAGs and topological execution.
+- Temporary capability swarms.
+- Fail-closed quorum rules.
+- Pre-execution simulation/admission mode.
+- Federated topic scopes for institution/region/global namespaces.
+- Ordered offline journaling and reconciliation.
+- Existing local policy precedence: local deny always wins.
+- Backward-compatible v0.1 HMAC demo retained for comparison.
 
 ## Components
 
-- `rsqs_pulse/crypto.py` - HMAC signing/verification for prototype operation.
-- `rsqs_pulse/model.py` - pulse, capability, task, and result schemas.
-- `rsqs_pulse/policy.py` - deterministic local allow/deny policy.
-- `rsqs_pulse/broker.py` - in-memory event broker.
-- `rsqs_pulse/coordinator.py` - epoch, pulse, task routing, result aggregation.
-- `rsqs_pulse/node.py` - enrolled node runtime and capability handlers.
-- `scripts/demo.py` - local distributed demonstration.
-- `tests/test_fabric.py` - deterministic test suite.
-
-## Pulse types
-
-- `WAKE`
-- `STATE_CHANGED`
-- `AGENT_AVAILABLE`
-- `CAPABILITY_AVAILABLE`
-- `POLICY_CHANGED`
-- `EMERGENCY`
-- `TASK`
+- `rsqs_pulse/identity.py` - Ed25519 identity and signature verification.
+- `rsqs_pulse/secure.py` - signed coordinator and secure node runtime.
+- `rsqs_pulse/persistent.py` - SQLite state.
+- `rsqs_pulse/provenance.py` - append-only hash-chain audit ledger.
+- `rsqs_pulse/capabilities.py` - capability registry.
+- `rsqs_pulse/taskgraph.py` - deterministic task graphs.
+- `rsqs_pulse/swarm.py` - temporary swarm assembly.
+- `rsqs_pulse/quorum.py` - quorum admission.
+- `rsqs_pulse/simulation.py` - dry-run policy/admission analysis.
+- `rsqs_pulse/federation.py` - hierarchical namespace boundaries.
+- `rsqs_pulse/offline.py` - store-and-forward reconciliation.
+- `scripts/demo_v02.py` - integrated v0.2 demonstration.
+- `tests/test_v02.py` - v0.2 security and systems tests.
 
 ## Security invariants
 
-- No unsigned pulse is accepted.
-- Epochs never move backwards.
+- Unsigned or incorrectly signed secure pulses are rejected.
+- Epochs cannot move backwards at a node.
 - Expired pulses are rejected.
-- Local deny overrides coordinator request.
-- Only registered handlers may execute.
-- Arbitrary shell execution is not supported.
-- Every result records node, task, epoch, and status.
+- Local policy can veto any distributed request.
+- Only registered capability handlers can execute.
+- Task graph cycles fail before execution.
+- Quorum mode fails closed when minimum participation is absent.
+- Provenance is tamper-evident.
+- Offline events reconcile in sequence.
+- No arbitrary shell execution is exposed by the fabric.
 
 ## Run
 
 ```bash
+python3 -m pip install -e .
 python3 scripts/demo.py
+python3 scripts/demo_v02.py
 python3 -m unittest discover -s tests -v
 ```
 
-## Scaling path
+Or:
 
-Replace the in-memory broker with NATS, MQTT, Redis Streams, Kafka, or HTTPS/SSE. Replace prototype HMAC with Ed25519 signatures and per-node certificates. Persist epochs and audit events in SQLite/PostgreSQL.
+```bash
+./run_all.sh
+```
+
+## Production transport boundary
+
+The coordination semantics are transport-independent. The included broker remains deterministic and local for tests. A production deployment can implement the same publish/subscribe contract over NATS, MQTT, HTTPS/SSE, Redis Streams or Kafka while retaining signature verification and local policy at every node.
+
+## Next production hardening
+
+The v0.2 fabric establishes the distributed control plane. Production deployment should add certificate rotation/revocation, persistent transport adapters, encrypted node-to-node channels, resource/health telemetry, schema-version negotiation, rate limiting, multi-authority trust policy, and deployment-specific secret/key storage.
