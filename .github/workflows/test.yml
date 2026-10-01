@@ -14,11 +14,5 @@ jobs:
           python-version: "3.12"
       - name: Install
         run: python3 -m pip install -e .
-      - name: Run v0.1 demo
-        run: python3 scripts/demo.py
-      - name: Run v0.2 demo
-        run: python3 scripts/demo_v02.py
-      - name: Run HTTP transport demo
-        run: python3 scripts/http_transport_demo.py
-      - name: Run unit tests
-        run: python3 -m unittest discover -s tests -v
+      - name: Run complete build
+        run: ./run_all.sh
