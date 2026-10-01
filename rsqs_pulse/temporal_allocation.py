@@ -14,10 +14,13 @@ class Replenishment:
     quantity: float
     unit: str
     location: str
+    quality: float = 1.0
 
     def __post_init__(self) -> None:
         if self.period < 0 or self.quantity < 0:
             raise ValueError("period and quantity must be non-negative")
+        if not 0.0 <= self.quality <= 1.0:
+            raise ValueError("quality must be in [0,1]")
 
 
 @dataclass(frozen=True)
@@ -74,6 +77,7 @@ class Transfer:
     unit: str
     shipped_quantity: float
     delivered_quantity: float
+    quality: float
 
 
 @dataclass(frozen=True)
@@ -84,7 +88,7 @@ class PeriodResult:
     allocations: tuple[TemporalAllocation, ...]
     transfers_departed: tuple[Transfer, ...]
     transfers_arrived: tuple[Transfer, ...]
-    ending_stock: tuple[tuple[str, str, str, float], ...]
+    ending_stock: tuple[tuple[str, str, str, float, float], ...]
 
 
 @dataclass(frozen=True)
@@ -145,11 +149,11 @@ class TemporalAllocationPlanner:
         link_capacity_used: Dict[tuple[int, int], float] = {}
         arrivals: Dict[int, List[Transfer]] = {}
 
-        stock: Dict[tuple[str, str, str], float] = {}
+        stock: Dict[tuple[str, str, str, float], float] = {}
         for row in inventory.conn.execute(
-            "SELECT resource,unit,location,SUM(quantity) FROM resource_lots GROUP BY resource,unit,location"
+            "SELECT resource,unit,location,quality,SUM(quantity) FROM resource_lots GROUP BY resource,unit,location,quality"
         ).fetchall():
-            stock[(row[0], row[1], row[2])] = float(row[3])
+            stock[(row[0], row[1], row[2], float(row[3]))] = float(row[4])
 
         results: List[PeriodResult] = []
         failed_demands: List[tuple[int, str]] = []
@@ -157,20 +161,15 @@ class TemporalAllocationPlanner:
         for period in range(horizon):
             arrived = tuple(arrivals.pop(period, []))
             for transfer in arrived:
-                key = (transfer.resource, transfer.unit, transfer.destination)
+                key = (transfer.resource, transfer.unit, transfer.destination, transfer.quality)
                 stock[key] = stock.get(key, 0.0) + transfer.delivered_quantity
 
             for item in sorted(
                 replenishment_map.get(period, []),
                 key=lambda x: (x.resource, x.unit, x.location, x.quantity),
             ):
-                key = (item.resource, item.unit, item.location)
+                key = (item.resource, item.unit, item.location, item.quality)
                 stock[key] = stock.get(key, 0.0) + item.quantity
-
-            self._preposition_for_future(
-                period, horizon, demand_list, graph, stock, links,
-                link_capacity_used, arrivals,
-            )
 
             period_demands = [
                 demand for demand in demand_list if period in demand.periods
@@ -194,6 +193,11 @@ class TemporalAllocationPlanner:
                     failed.add(demand.capability)
                     failed_demands.append((period, demand.capability))
 
+            self._preposition_for_future(
+                period, horizon, demand_list, graph, stock, links,
+                link_capacity_used, arrivals,
+            )
+
             departed = []
             for arrival_period, scheduled in arrivals.items():
                 for transfer in scheduled:
@@ -215,8 +219,8 @@ class TemporalAllocationPlanner:
                         key=lambda t: (t.resource, t.source, t.destination, t.depart_period),
                     )),
                     ending_stock=tuple(
-                        sorted((resource, unit, location, quantity)
-                               for (resource, unit, location), quantity in stock.items()
+                        sorted((resource, unit, location, quality, quantity)
+                               for (resource, unit, location, quality), quantity in stock.items()
                                if quantity > 1e-12)
                     ),
                 )
@@ -236,7 +240,7 @@ class TemporalAllocationPlanner:
         capability: str,
         minimum_service: float,
         graph: DependencyGraph,
-        stock: Dict[tuple[str, str, str], float],
+        stock: Dict[tuple[str, str, str, float], float],
         service_levels: Dict[str, float],
         allocations: List[TemporalAllocation],
         stack: set[str],
@@ -285,12 +289,12 @@ class TemporalAllocationPlanner:
         period: int,
         capability: str,
         req: ResourceRequirement,
-        stock: Dict[tuple[str, str, str], float],
+        stock: Dict[tuple[str, str, str, float], float],
         allocations: List[TemporalAllocation],
     ) -> bool:
         remaining = req.quantity
         consumed = self._consume_stock(
-            stock, req.resource, req.unit, remaining, req.location
+            stock, req.resource, req.unit, remaining, req.location, req.minimum_quality
         )
         if consumed > 0:
             allocations.append(TemporalAllocation(
@@ -304,7 +308,7 @@ class TemporalAllocationPlanner:
         for alt in self.substitutions.alternatives(req.resource):
             substitute_needed = remaining * alt.ratio
             used = self._consume_stock(
-                stock, alt.substitute, req.unit, substitute_needed, req.location
+                stock, alt.substitute, req.unit, substitute_needed, req.location, req.minimum_quality
             )
             if used <= 0:
                 continue
@@ -320,19 +324,21 @@ class TemporalAllocationPlanner:
 
     @staticmethod
     def _consume_stock(
-        stock: Dict[tuple[str, str, str], float],
+        stock: Dict[tuple[str, str, str, float], float],
         resource: str,
         unit: str,
         quantity: float,
         location: str | None,
+        minimum_quality: float = 0.0,
     ) -> float:
         keys = [
             key for key in stock
             if key[0] == resource and key[1] == unit
             and (location is None or key[2] == location)
+            and key[3] >= minimum_quality
             and stock[key] > 1e-12
         ]
-        keys.sort()
+        keys.sort(key=lambda key: (-key[3], key[2]))
         needed = quantity
         used = 0.0
         for key in keys:
@@ -350,12 +356,12 @@ class TemporalAllocationPlanner:
         horizon: int,
         demands: Sequence[CapabilityDemand],
         graph: DependencyGraph,
-        stock: Dict[tuple[str, str, str], float],
+        stock: Dict[tuple[str, str, str, float], float],
         links: Sequence[TransportLink],
         link_capacity_used: Dict[tuple[int, int], float],
         arrivals: Dict[int, List[Transfer]],
     ) -> None:
-        future_needs: Dict[tuple[int, str, str, str], float] = {}
+        future_needs: Dict[tuple[int, str, str, str, float], float] = {}
         for demand in demands:
             for demand_period in demand.periods:
                 if demand_period <= period or demand_period >= horizon:
@@ -369,8 +375,15 @@ class TemporalAllocationPlanner:
             arrival_period = period + link.lead_time_periods
             if arrival_period <= period or arrival_period >= horizon:
                 continue
-            need_key = (arrival_period, link.resource, link.unit, link.destination)
-            required = future_needs.get(need_key, 0.0)
+            candidate_needs = [
+                (key, quantity) for key, quantity in future_needs.items()
+                if key[0] == arrival_period and key[1] == link.resource
+                and key[2] == link.unit and key[3] == link.destination
+            ]
+            if not candidate_needs:
+                continue
+            minimum_quality = max(key[4] for key, _ in candidate_needs)
+            required = max(quantity for _, quantity in candidate_needs)
             if required <= 1e-12:
                 continue
 
@@ -380,8 +393,13 @@ class TemporalAllocationPlanner:
                 if transfer.resource == link.resource
                 and transfer.unit == link.unit
                 and transfer.destination == link.destination
+                and transfer.quality >= minimum_quality
             )
-            local = stock.get((link.resource, link.unit, link.destination), 0.0)
+            local = sum(
+                quantity for (resource, unit, location, quality), quantity in stock.items()
+                if resource == link.resource and unit == link.unit
+                and location == link.destination and quality >= minimum_quality
+            )
             shortage = max(0.0, required - local - already_arriving)
             if shortage <= 1e-12:
                 continue
@@ -391,8 +409,16 @@ class TemporalAllocationPlanner:
                 0.0,
                 link.capacity_per_period - link_capacity_used.get(capacity_key, 0.0),
             )
-            source_key = (link.resource, link.unit, link.source)
-            source_available = stock.get(source_key, 0.0)
+            source_keys = sorted(
+                [
+                    key for key in stock
+                    if key[0] == link.resource and key[1] == link.unit
+                    and key[2] == link.source and key[3] >= minimum_quality
+                    and stock[key] > 1e-12
+                ],
+                key=lambda key: (-key[3], key[2]),
+            )
+            source_available = sum(stock[key] for key in source_keys)
             if capacity_left <= 1e-12 or source_available <= 1e-12:
                 continue
 
@@ -402,21 +428,32 @@ class TemporalAllocationPlanner:
             if shipped <= 1e-12:
                 continue
 
-            delivered = shipped * delivered_per_shipped
-            stock[source_key] = source_available - shipped
+            remaining_ship = shipped
+            shipped_by_quality = []
+            for source_key in source_keys:
+                take = min(stock[source_key], remaining_ship)
+                if take > 0:
+                    stock[source_key] -= take
+                    shipped_by_quality.append((take, source_key[3]))
+                    remaining_ship -= take
+                if remaining_ship <= 1e-12:
+                    break
             link_capacity_used[capacity_key] = link_capacity_used.get(capacity_key, 0.0) + shipped
-            arrivals.setdefault(arrival_period, []).append(
-                Transfer(
-                    depart_period=period,
-                    arrive_period=arrival_period,
-                    source=link.source,
-                    destination=link.destination,
-                    resource=link.resource,
-                    unit=link.unit,
-                    shipped_quantity=shipped,
-                    delivered_quantity=delivered,
+            for shipped_part, quality in shipped_by_quality:
+                delivered = shipped_part * delivered_per_shipped
+                arrivals.setdefault(arrival_period, []).append(
+                    Transfer(
+                        depart_period=period,
+                        arrive_period=arrival_period,
+                        source=link.source,
+                        destination=link.destination,
+                        resource=link.resource,
+                        unit=link.unit,
+                        shipped_quantity=shipped_part,
+                        delivered_quantity=delivered,
+                        quality=quality,
+                    )
                 )
-            )
 
     def _accumulate_needs(
         self,
@@ -424,7 +461,7 @@ class TemporalAllocationPlanner:
         period: int,
         minimum_service: float,
         graph: DependencyGraph,
-        needs: Dict[tuple[int, str, str, str], float],
+        needs: Dict[tuple[int, str, str, str, float], float],
         visited: set[str],
     ) -> None:
         if capability in visited:
@@ -434,7 +471,7 @@ class TemporalAllocationPlanner:
         for req in graph.resource_requirements.get(capability, []):
             if not req.critical or req.location is None:
                 continue
-            key = (period, req.resource, req.unit, req.location)
+            key = (period, req.resource, req.unit, req.location, req.minimum_quality)
             needs[key] = max(needs.get(key, 0.0), req.quantity * minimum_service)
         for dependency in graph.capability_requirements.get(capability, []):
             if dependency.critical:
