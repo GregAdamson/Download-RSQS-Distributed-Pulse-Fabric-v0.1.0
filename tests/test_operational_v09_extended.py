@@ -282,5 +282,48 @@ class OperationalV09ExtendedTests(unittest.TestCase):
             self.assertFalse(thread.is_alive())
 
 
+    def test_observer_exposes_bottleneck_and_selected_strategy(self):
+        from rsqs_pulse.dependency_graph import ResourceRequirement
+        from rsqs_pulse.resilience_store import ResilienceStore
+        from rsqs_pulse.resource_state import ResourceInventory
+
+        with tempfile.TemporaryDirectory() as d:
+            runtime = FabricRuntime(
+                "node",
+                os.path.join(d, "runtime.db"),
+                LocalPolicy(allowed_capabilities=set()),
+            )
+            inventory = ResourceInventory(runtime.state.conn)
+            inventory.observe("water", 2, "L", "site", "meter")
+            graph = DependencyGraph()
+            graph.require_resource(
+                "process",
+                ResourceRequirement("water", 5, "L", location="site"),
+            )
+            store = ResilienceStore(runtime.state.conn)
+            store.record_trajectory(
+                "low",
+                {"name": "low"},
+                score=1.0,
+                validated=True,
+            )
+            store.record_trajectory(
+                "high",
+                {"name": "high"},
+                score=4.0,
+                validated=True,
+            )
+            snapshot = FabricObserver(
+                runtime,
+                resilience_store=store,
+                resource_inventory=inventory,
+                dependency_graph=graph,
+            ).snapshot()
+            self.assertEqual(snapshot.resource_bottlenecks[0]["resource"], "water")
+            self.assertEqual(snapshot.resource_bottlenecks[0]["shortage"], 3)
+            self.assertEqual(snapshot.selected_trajectory["trajectory_id"], "high")
+            runtime.close()
+
+
 if __name__ == "__main__":
     unittest.main()
