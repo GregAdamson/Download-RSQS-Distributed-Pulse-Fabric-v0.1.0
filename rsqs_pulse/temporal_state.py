@@ -109,7 +109,7 @@ class TemporalStateStore:
                FROM temporal_facts
                WHERE key=? AND state_class=? AND valid_from<=?
                  AND (valid_until IS NULL OR valid_until>=?)
-               ORDER BY valid_from DESC, observed_at DESC, fact_id""",
+               ORDER BY valid_from DESC, observed_at DESC, rowid DESC""",
             (key, state_class.value, int(when), int(when)),
         ).fetchall()
         return [self._row(key, state_class, row) for row in rows]
@@ -119,7 +119,7 @@ class TemporalStateStore:
             """SELECT fact_id,value_json,unit,source,observed_at,valid_from,valid_until,
                       confidence,evidence_ref,jurisdiction,owner,privacy_scope,supersedes
                FROM temporal_facts WHERE key=? AND state_class=?
-               ORDER BY valid_from DESC, observed_at DESC, fact_id DESC LIMIT 1""",
+               ORDER BY valid_from DESC, observed_at DESC, rowid DESC LIMIT 1""",
             (key, state_class.value),
         ).fetchone()
         return None if row is None else self._row(key, state_class, row)
@@ -129,14 +129,14 @@ class TemporalStateStore:
             rows = self.conn.execute(
                 """SELECT state_class,fact_id,value_json,unit,source,observed_at,valid_from,
                           valid_until,confidence,evidence_ref,jurisdiction,owner,privacy_scope,supersedes
-                   FROM temporal_facts WHERE key=? ORDER BY observed_at,fact_id""",
+                   FROM temporal_facts WHERE key=? ORDER BY observed_at,rowid""",
                 (key,),
             ).fetchall()
             return [self._row(key, StateClass(row[0]), row[1:]) for row in rows]
         rows = self.conn.execute(
             """SELECT fact_id,value_json,unit,source,observed_at,valid_from,valid_until,
                       confidence,evidence_ref,jurisdiction,owner,privacy_scope,supersedes
-               FROM temporal_facts WHERE key=? AND state_class=? ORDER BY observed_at,fact_id""",
+               FROM temporal_facts WHERE key=? AND state_class=? ORDER BY observed_at,rowid""",
             (key, state_class.value),
         ).fetchall()
         return [self._row(key, state_class, row) for row in rows]
