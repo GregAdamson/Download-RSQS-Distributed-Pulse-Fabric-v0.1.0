@@ -18,10 +18,10 @@ class AuthoritativeRuntimeTests(unittest.TestCase):
             transition = Transition("measure", "measure", lambda state: State({"value": 999}))
             result = runtime.run_cycle(
                 [Observation("sensor", {"value": 0})],
-                lambda state: state.values.get("value") == 7,
+                lambda state: state.values.get("value") == 999,
                 [RuntimeTransition(transition, {}, reduce=lambda state, output: State({"value": output["measured"]}))],
             )
-            self.assertEqual(result.status, "achieved")
+            self.assertEqual(result.status, "incomplete")
             rows = runtime.state.conn.execute("SELECT operation_id,state FROM operation_ledger").fetchall()
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0][1], LedgerState.COMPLETE.value)
