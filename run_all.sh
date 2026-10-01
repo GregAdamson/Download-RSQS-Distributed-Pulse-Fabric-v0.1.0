@@ -13,4 +13,5 @@ python3 scripts/reconciliation_demo.py
 python3 scripts/resource_resilience_demo.py
 python3 scripts/network_resilience_demo.py
 python3 scripts/temporal_allocation_demo.py
+python3 scripts/strategy_oracle_demo.py
 python3 -m unittest discover -s tests -v
