@@ -7,6 +7,7 @@ from .dal import DALEdge, DALGraph, DALNode
 from .distributed_runtime import DistributedCoordinator, DistributedWorker, SignedResult
 from .dependency_centrality import DependencyCentralityAnalyzer, DependencyFinding
 from .dependency_graph import CapabilityRequirement, CapabilityStatus, DependencyGraph, ResourceRequirement
+from .domain_adapter import AdapterBatch, CanonicalDependency, CanonicalObservation, CanonicalResource, CanonicalRule, CompositeDomainAdapter, MappingDomainAdapter, MappingSpec, apply_adapter_batch
 from .durable_transport import DurablePulseEventStore
 from .experiments import DeterministicExperimentLoop, Experiment, ExperimentResult
 from .federation import FederationScope, within_scope
@@ -15,6 +16,7 @@ from .http_transport import HTTPTransportClient, PulseEventStore, PulseHTTPServe
 from .identity import NodeIdentity, PublicIdentity
 from .idempotency import IdempotencyJournal
 from .institutional_api import InstitutionalCapability, InstitutionalGateway
+from .institutional_rules import InstitutionalRuleStore, RuleDecision
 from .institutions import InstitutionAssembler, InstitutionMember, RoleRequirement, TemporaryInstitution
 from .intent import DeterministicIntentCompiler, IntentStep
 from .learning_reconciliation import LearningReconciliation, ReconciliationRecord
@@ -22,14 +24,16 @@ from .learning_runtime import LearningResult, LearningRuntime
 from .manifests import AgentManifest, sign_manifest, verify_manifest
 from .model_store import WorldModelStore
 from .model import Capability, Pulse, Task, TaskResult
+from .multi_host_acceptance import AcceptanceCriterion, HostEvidence, MultiHostAcceptanceReport, MultiHostAcceptanceVerifier, issue_host_evidence
 from .node import Node
 from .monte_carlo_resilience import MonteCarloResilienceEngine, ScenarioOutcome, ShockScenario
 from .network_resilience import CapabilityRecovery, NetworkAllocation, NetworkResiliencePlan, NetworkResiliencePlanner, RecoveryTarget, ResourceShock
 from .offline import OfflineJournal
+from .observability import FabricObserver, OperationalSnapshot
 from .operation_ledger import LedgerState, OperationLedger, OperationRecord
 from .oracle import DistributedOracle, EvidenceClaim, OracleAssessment
 from .persistent import SQLiteState
-from .persistent_identity import load_or_create_identity
+from .persistent_identity import load_identity, load_or_create_identity
 from .policy import LocalPolicy
 from .provenance import ProvenanceLedger
 from .quorum import QuorumRule
@@ -56,6 +60,9 @@ from .swarm import Swarm, SwarmMember, SwarmPlanner
 from .taskgraph import GraphExecutor, GraphTask, TaskGraph
 from .temporal_allocation import CapabilityDemand, PeriodResult, Replenishment, TemporalAllocation, TemporalAllocationPlan, TemporalAllocationPlanner, Transfer, TransportLink
 from .temporal_state import StateClass, TemporalFact, TemporalStateStore
+from .trajectory_search import BoundedTrajectorySearch, ExhaustiveSearchResult, ExhaustiveTrajectorySearch, SearchConfig, SearchResult
 from .trajectory_optimizer import TrajectoryCandidate, TrajectoryOptimizer, TrajectoryState
+from .trust_plane import AuthorityGrant, TrustRegistry, issue_grant, verify_grant
+from .trusted_capabilities import SignedCapabilityAdvertisement, TrustedCapabilityRegistry, sign_capability_advertisement
 from .world_models import CompetingWorldModels, ModelEvaluation, WorldModel
 from .world_state import StateFact, WorldState
