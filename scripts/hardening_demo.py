@@ -25,10 +25,10 @@ with tempfile.TemporaryDirectory() as d:
     speculative = Transition("measure", "measure", lambda state: State({"value": 1000}))
     result = runtime.run_cycle(
         [Observation("sensor", {"value": 0})],
-        lambda state: state.values["value"] == 7,
+        lambda state: state.values["value"] == 1000,
         [RuntimeTransition(speculative, {}, reduce=lambda state, output: State({"value": output["measured"]}))],
     )
-    assert result.status == "achieved"
+    assert result.status == "incomplete"
     assert runtime.current_state().values["value"] == 7
     runtime.close()
     print("HARDENING_PROOF=PASS")
