@@ -19,8 +19,9 @@ class HardeningTests(unittest.TestCase):
             runtime.register_capability("set", lambda args: {"actual": 4})
             predicted = Transition("set", "set", lambda state: State({"x": 999}))
             spec = RuntimeTransition(predicted, {}, reduce=lambda state, output: State({"x": output["actual"]}))
-            result = runtime.run_cycle([Observation("sensor", {"x": 0})], lambda s: s.values["x"] == 4, [spec])
-            self.assertEqual(result.status, "achieved")
+            result = runtime.run_cycle([Observation("sensor", {"x": 0})], lambda s: s.values["x"] == 999, [spec])
+            self.assertEqual(result.status, "incomplete")
+            self.assertEqual(result.final_state["x"], 4)
             self.assertEqual(runtime.current_state().values["x"], 4)
             runtime.close()
 
