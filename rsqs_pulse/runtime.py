@@ -9,10 +9,12 @@ from .capabilities import CapabilityAdvertisement, CapabilityRegistry
 from .cognitive_loop import CognitiveLoop, Observation
 from .dal import DALGraph, DALNode
 from .identity import NodeIdentity
+from .operation_ledger import LedgerState, OperationLedger
 from .persistent import SQLiteState
 from .policy import LocalPolicy
 from .provenance import ProvenanceLedger
 from .state_reasoning import Constraint, State, Transition
+from .temporal_state import StateClass, TemporalStateStore
 from .world_state import WorldState
 
 
@@ -40,12 +42,15 @@ class FabricRuntime:
         self.policy = policy
         self.identity = identity or NodeIdentity(node_id)
         self.world = WorldState(self.state.conn)
+        self.temporal = TemporalStateStore(self.state.conn)
+        self.operations = OperationLedger(self.state.conn)
         self.registry = CapabilityRegistry(self.state)
         self.ledger = ProvenanceLedger(self.state.conn)
         self.cognitive = CognitiveLoop()
         self.dal = DALGraph()
         self.handlers: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {}
         self._init_runtime_schema()
+        self.operations.expire_running()
 
     def _init_runtime_schema(self) -> None:
         self.state.conn.executescript("""
@@ -79,10 +84,14 @@ class FabricRuntime:
         perceived = self.cognitive.perceive(current, observations)
         for observation in observations:
             for key, value in sorted(observation.values.items()):
-                self.world.assert_fact(key, value, observation.source)
+                legacy = self.world.assert_fact(key, value, observation.source)
+                temporal = self.temporal.assert_fact(
+                    key, value, StateClass.OBSERVED, observation.source,
+                    evidence_ref=f"world:{key}:{legacy.version}",
+                )
                 node_id = f"obs:{uuid.uuid4()}"
-                self.dal.add_node(DALNode("OBSERVATION", node_id, {"source": observation.source, "key": key, "value": value}))
-                self.ledger.append("observation", node_id, {"source": observation.source, "key": key, "value": value})
+                self.dal.add_node(DALNode("OBSERVATION", node_id, {"source": observation.source, "key": key, "value": value, "fact_id": temporal.fact_id}))
+                self.ledger.append("observation", node_id, {"source": observation.source, "key": key, "value": value, "fact_id": temporal.fact_id})
         return perceived
 
     def run_cycle(self, observations: Iterable[Observation], desired: Callable[[State], bool], transitions: Iterable[RuntimeTransition], constraints: Iterable[Constraint] = (), max_depth: int = 4) -> RuntimeCycleResult:
@@ -110,6 +119,9 @@ class FabricRuntime:
         for seq, transition in enumerate(decision.trajectory.transitions, start=1):
             spec = transition_map[transition.name]
             handler = self.handlers[transition.capability]
+            operation_id = f"{cycle_id}:{seq}"
+            self.operations.create(operation_id, transition.capability, self.node_id, spec.args, authority_ref=self.identity.public.node_id)
+            self.operations.start(operation_id, lease_seconds=30)
             self._record_action(cycle_id, seq, transition.capability, spec.args, {}, "pending")
             try:
                 output = handler(dict(spec.args))
@@ -120,20 +132,37 @@ class FabricRuntime:
                     if not constraint.predicate(next_state):
                         raise ValueError(f"execution result violates constraint: {constraint.name}")
             except Exception as exc:
+                current_operation = self.operations.get(operation_id)
+                if current_operation.state == LedgerState.RUNNING:
+                    self.operations.transition(
+                        operation_id, LedgerState.UNKNOWN,
+                        evidence={"error": str(exc), "reason": "execution outcome requires reconciliation"},
+                    )
                 self._record_action(cycle_id, seq, transition.capability, spec.args, {"error": str(exc)}, "failed")
-                self.ledger.append("action_failed", f"{cycle_id}:{seq}", {"capability": transition.capability, "error": str(exc)})
+                self.ledger.append("action_unknown", operation_id, {"capability": transition.capability, "error": str(exc)})
                 result = RuntimeCycleResult(cycle_id, "failed", start.values, working.values, tuple(executed), str(exc))
                 self._record_cycle(result)
                 return result
 
+            previous_values = dict(working.values)
             working = next_state
             for key, value in sorted(working.values.items()):
                 previous = self.world.latest(key)
                 if previous is None or previous.value != value:
-                    self.world.assert_fact(key, value, f"action:{transition.capability}")
+                    legacy = self.world.assert_fact(key, value, f"action:{transition.capability}")
+                    self.temporal.assert_fact(
+                        key, value, StateClass.OBSERVED, f"action:{transition.capability}",
+                        evidence_ref=operation_id,
+                        supersedes=None if previous is None else f"world:{key}:{previous.version}",
+                    )
+            self.operations.transition(
+                operation_id, LedgerState.COMPLETE,
+                result=output,
+                evidence={"source": "capability_result", "state_changed": previous_values != working.values},
+            )
             self._record_action(cycle_id, seq, transition.capability, spec.args, output, "ok")
             executed.append(transition.name)
-            self.ledger.append("action", f"{cycle_id}:{seq}", {"capability": transition.capability, "args": spec.args, "output": output})
+            self.ledger.append("action", operation_id, {"capability": transition.capability, "args": spec.args, "output": output})
 
         status = "achieved" if desired(working) else "incomplete"
         result = RuntimeCycleResult(cycle_id, status, start.values, working.values, tuple(executed), decision.reason)
@@ -162,7 +191,17 @@ class FabricRuntime:
         cycles = int(self.state.conn.execute("SELECT COUNT(*) FROM runtime_cycles").fetchone()[0])
         actions = int(self.state.conn.execute("SELECT COUNT(*) FROM runtime_actions").fetchone()[0])
         failed = int(self.state.conn.execute("SELECT COUNT(*) FROM runtime_actions WHERE status='failed'").fetchone()[0])
-        return {"node_id": self.node_id, "status": "ok" if failed == 0 else "degraded", "cycles": cycles, "actions": actions, "failed_actions": failed, "provenance_valid": self.ledger.verify(), "capabilities": sorted(self.handlers)}
+        unresolved = len(self.operations.unresolved())
+        return {
+            "node_id": self.node_id,
+            "status": "ok" if failed == 0 and unresolved == 0 else "degraded",
+            "cycles": cycles,
+            "actions": actions,
+            "failed_actions": failed,
+            "unresolved_operations": unresolved,
+            "provenance_valid": self.ledger.verify(),
+            "capabilities": sorted(self.handlers),
+        }
 
     def close(self) -> None:
         self.state.conn.close()
