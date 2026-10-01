@@ -5,6 +5,7 @@ from .cognitive_loop import ActionDecision, CognitiveLoop, Observation
 from .coordinator import Coordinator
 from .dal import DALEdge, DALGraph, DALNode
 from .distributed_runtime import DistributedCoordinator, DistributedWorker, SignedResult
+from .durable_transport import DurablePulseEventStore
 from .experiments import DeterministicExperimentLoop, Experiment, ExperimentResult
 from .federation import FederationScope, within_scope
 from .fractal import FabricDescriptor, FabricRegistry
@@ -15,6 +16,7 @@ from .institutions import InstitutionAssembler, InstitutionMember, RoleRequireme
 from .intent import DeterministicIntentCompiler, IntentStep
 from .learning_runtime import LearningResult, LearningRuntime
 from .manifests import AgentManifest, sign_manifest, verify_manifest
+from .model_store import WorldModelStore
 from .model import Capability, Pulse, Task, TaskResult
 from .node import Node
 from .offline import OfflineJournal
