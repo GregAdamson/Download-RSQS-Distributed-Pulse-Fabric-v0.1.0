@@ -18,5 +18,7 @@ jobs:
         run: python3 scripts/demo.py
       - name: Run v0.2 demo
         run: python3 scripts/demo_v02.py
+      - name: Run HTTP transport demo
+        run: python3 scripts/http_transport_demo.py
       - name: Run unit tests
         run: python3 -m unittest discover -s tests -v
