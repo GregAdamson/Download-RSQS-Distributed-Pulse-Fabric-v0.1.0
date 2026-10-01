@@ -159,10 +159,10 @@ class TrustRegistry:
             """SELECT grant_id,node_id,public_key_b64,scopes_json,issued_at,
                       expires_at,issuer_id,signature
                FROM authority_grants
-               WHERE node_id=? AND revoked_at IS NULL
+               WHERE node_id=? AND (revoked_at IS NULL OR revoked_at>?)
                  AND issued_at<=? AND expires_at>=?
                ORDER BY issued_at DESC,rowid DESC LIMIT 1""",
-            (node_id, now, now),
+            (node_id, now, now, now),
         ).fetchone()
         if row is None:
             return None
