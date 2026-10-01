@@ -11,6 +11,7 @@ from .federation import FederationScope, within_scope
 from .fractal import FabricDescriptor, FabricRegistry
 from .http_transport import HTTPTransportClient, PulseEventStore, PulseHTTPServer
 from .identity import NodeIdentity, PublicIdentity
+from .idempotency import IdempotencyJournal
 from .institutional_api import InstitutionalCapability, InstitutionalGateway
 from .institutions import InstitutionAssembler, InstitutionMember, RoleRequirement, TemporaryInstitution
 from .intent import DeterministicIntentCompiler, IntentStep
@@ -22,9 +23,13 @@ from .node import Node
 from .offline import OfflineJournal
 from .oracle import DistributedOracle, EvidenceClaim, OracleAssessment
 from .persistent import SQLiteState
+from .persistent_identity import load_or_create_identity
 from .policy import LocalPolicy
 from .provenance import ProvenanceLedger
 from .quorum import QuorumRule
+from .reconciliation import OperationState, OperationStatus, Reconciler, ReconciliationDecision
+from .reconciled_worker import ReconciledDistributedWorker
+from .recoverable_worker import RecoverableDistributedWorker
 from .resource_exchange import ResourceExchange, ResourceMatch, ResourceNeed, ResourceOffer
 from .resources import ResourceProfile
 from .routing import ResourceAwareRouter, RouteDecision
