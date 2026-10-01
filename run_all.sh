@@ -11,4 +11,5 @@ python3 scripts/cognitive_substrate_demo.py
 python3 scripts/hardening_demo.py
 python3 scripts/reconciliation_demo.py
 python3 scripts/resource_resilience_demo.py
+python3 scripts/network_resilience_demo.py
 python3 -m unittest discover -s tests -v
