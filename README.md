@@ -1,100 +1,70 @@
-# RSQS Distributed State, Cognition and Action Fabric v0.3.0
+# RSQS Distributed State, Cognition and Action Fabric v0.4.0
 
-This repository has evolved beyond a pulse transport. It is an opt-in, recursively composable fabric for distributed state, cognition, institutional coordination and authorised action.
+v0.4 is the vertical-integration release. The repository now contains a persistent runtime that actually joins the earlier architectural components into a state-to-action cycle rather than leaving them only as independent primitives.
 
-It combines signed events, deterministic task graphs, DAL semantic state, trajectory planning, capability discovery, temporary institutions, distributed evidence assessment, resource matching, world-state versioning and independently governed execution nodes.
-
-See `ARCHITECTURE.md` for the complete model.
-
-## v0.3 architecture
+## Executable runtime loop
 
 ```text
-OBSERVATION / HUMAN INTENT
-          |
-          v
-DAL SEMANTIC GRAPH
-          |
-          v
-CURRENT STATE + DESIRED STATE
-          |
-          v
-CONSTRAINTS + COUNTERFACTUALS
-          |
-          v
-TRAJECTORY SEARCH
-          |
-          +------> DISTRIBUTED ORACLE / EVIDENCE
-          |
-          +------> SIMULATION / QUORUM
-          |
-          v
-CAPABILITY + RESOURCE DISCOVERY
-          |
-          v
-TEMPORARY SWARM / INSTITUTION
-          |
-          v
-LOCAL AUTHORISATION AT EVERY NODE
-          |
-          v
-SIGNED DISTRIBUTED TASKS
-          |
-          v
-ACTION + OUTCOME + EVIDENCE
-          |
-          v
-PROVENANCE + VERSIONED WORLD STATE
-          |
-          v
-LESSON / NEXT STATE
+OBSERVATION
+  -> PERSISTED WORLD STATE
+  -> TRAJECTORY SEARCH
+  -> CONSTRAINT CHECKING
+  -> CAPABILITY AVAILABILITY
+  -> LOCAL POLICY AUTHORISATION
+  -> REGISTERED CAPABILITY EXECUTION
+  -> ACTION RECEIPT
+  -> WORLD-STATE UPDATE
+  -> HASH-CHAINED PROVENANCE
+  -> PERSISTED CYCLE RESULT
+  -> RESTART / RECOVERY
 ```
 
-## Recursive composition
+`FabricRuntime` is the integrated process. It owns persistent SQLite state, world state, capability registration, DAL observations, trajectory reasoning, local authorisation, action execution, cycle/action records and provenance.
 
-A fabric node can represent a program, computer, sensor network, institutional gateway, local fabric, regional fabric, research institution or another compatible fabric. Higher layers see declared capability and authority scope rather than silently inheriting control of lower layers.
+## Daemon
 
-## Implemented systems
-
-- Ed25519 signed pulse authority and node verification.
-- HTTP network transport and local deterministic broker.
-- Persistent SQLite state and ordered offline reconciliation.
-- Hash-chained provenance.
-- DAL semantic graph with state, observation, desired state, constraint, trajectory, action, evidence, counterfactual, lesson and provenance nodes.
-- State-transition and trajectory search under deterministic constraints.
-- Per-trajectory local authorisation.
-- Distributed Oracle retaining supporting and opposing evidence.
-- Capability discovery and health/resource-aware routing.
-- Resource offer/need matching for real-world allocation modelling.
-- Temporary swarms.
-- Temporary institutional role assembly.
-- Institutional capability gateway with explicit write authority.
-- Recursive/fractal fabric descriptors.
-- Task DAGs and deterministic intent compilation.
-- Simulation and fail-closed quorum gates.
-- Signed content-addressed agent manifests.
-- Event subscriptions.
-- Versioned world state.
-
-## Governance invariant
-
-```text
-pulse != permission
-signature != permission
-network reachability != permission
-task request != permission
-```
-
-Execution occurs only when local policy authorises a registered local capability.
-
-## Run
+Installation exposes:
 
 ```bash
-python3 -m pip install -e .
+rsqs-fabricd --node-id node-a --state ./state/node-a.db --port 8787
+```
+
+The daemon exposes read-only operational endpoints:
+
+```text
+GET /health
+GET /state
+GET /capabilities
+```
+
+No arbitrary shell or generic remote execution endpoint is provided.
+
+## Proof paths
+
+`scripts/runtime_demo.py` executes a complete multi-step trajectory, persists the resulting world state, closes the process, opens a fresh runtime against the same database and demonstrates recovered state.
+
+`tests/test_runtime_integration.py` verifies:
+
+- a complete observation-to-action cycle;
+- multiple actions in a trajectory;
+- world-state persistence;
+- restart recovery;
+- provenance-chain validity;
+- local policy denial;
+- unavailable-capability denial.
+
+The earlier distributed layers remain present: Ed25519 pulse identities, HTTP pulse transport, capability registry, task DAGs, resource routing, swarms, temporary institutions, Oracle evidence aggregation, resource exchange, signed agent manifests, federation scopes, subscriptions, offline reconciliation and recursive fabric descriptors.
+
+## Run everything
+
+```bash
 ./run_all.sh
 ```
 
-## Production boundary
+That command installs the package, runs the legacy demonstrations, network transport demonstration, integrated runtime demonstration and the complete unit-test suite.
 
-The built-in HTTP transport is suitable for development and controlled-network experimentation. Internet-facing production requires TLS, durable event infrastructure, deployment-specific key storage, rotation/revocation, authentication, rate limiting, monitoring and explicit node enrolment.
+## Current boundary
 
-The fabric intentionally contains no self-propagation, Internet scanning, credential bypass or arbitrary remote shell mechanism.
+v0.4 is an integrated single-runtime build plus network transport primitives. The next proof milestone is a multi-process/multi-machine integration harness in which separately running enrolled nodes receive signed tasks, execute locally authorised capabilities, return signed results, survive node failure and reconcile after restart.
+
+Production Internet deployment additionally requires TLS termination, durable broker infrastructure, deployment-specific key storage and rotation/revocation, rate limiting, explicit enrolment and operational monitoring.
