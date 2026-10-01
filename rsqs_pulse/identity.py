@@ -31,6 +31,17 @@ class NodeIdentity:
     def sign(self, payload: bytes) -> str:
         return base64.b64encode(self._private.sign(payload)).decode("ascii")
 
+    def private_bytes_raw(self) -> bytes:
+        return self._private.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+
+    @classmethod
+    def from_private_bytes(cls, node_id: str, raw: bytes) -> "NodeIdentity":
+        return cls(node_id, Ed25519PrivateKey.from_private_bytes(raw))
+
     @staticmethod
     def verify(public: PublicIdentity, payload: bytes, signature_b64: str) -> bool:
         try:
