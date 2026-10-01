@@ -15,6 +15,7 @@ from .secure import pulse_bytes
 
 if TYPE_CHECKING:
     from .trust_plane import TrustRegistry
+    from .trusted_capabilities import TrustedCapabilityRegistry
 
 
 def canonical_bytes(value: Dict[str, Any]) -> bytes:
@@ -125,6 +126,7 @@ class DistributedCoordinator:
         transport: HTTPTransportClient,
         trusted_workers: Dict[str, PublicIdentity],
         trust_registry: "TrustRegistry | None" = None,
+        capability_registry: "TrustedCapabilityRegistry | None" = None,
     ) -> None:
         self.network = network
         self.identity = identity
@@ -132,6 +134,7 @@ class DistributedCoordinator:
         self.transport = transport
         self.trusted_workers = dict(trusted_workers)
         self.trust_registry = trust_registry
+        self.capability_registry = capability_registry
         self.ledger = ProvenanceLedger(self.state.conn)
         self.cursor = int(self.state.get_meta("coordinator_cursor", "0") or "0")
         self.epoch = int(self.state.get_meta("coordinator_epoch", "0") or "0")
@@ -155,6 +158,15 @@ class DistributedCoordinator:
     def dispatch(self, target_node: str, capability: str, args: Dict[str, Any], ttl_seconds: int = 120) -> str:
         if self.trust_registry is not None and not self.trust_registry.authorise(target_node, capability):
             raise PermissionError(f"target node is not authorised for capability: {target_node}:{capability}")
+        if self.capability_registry is not None:
+            providers = {
+                advertisement.node_id
+                for advertisement in self.capability_registry.providers(capability)
+            }
+            if target_node not in providers:
+                raise PermissionError(
+                    f"target node has no active signed capability advertisement: {target_node}:{capability}"
+                )
         self.epoch += 1
         self.state.set_meta("coordinator_epoch", str(self.epoch))
         task_id = str(uuid.uuid4())
