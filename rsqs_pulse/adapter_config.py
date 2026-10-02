@@ -15,20 +15,25 @@ from .sensor_adapters import (
 
 
 def _mapping(raw: Mapping[str, Any]) -> ObservationMapping:
-    required = (
-        "observation_type_field",
-        "asset_id_field",
-        "value_field",
-        "unit_field",
-    )
+    required = ("asset_id_field", "value_field")
     missing = [key for key in required if key not in raw]
     if missing:
         raise ValueError(f"missing mapping fields: {missing}")
+    if raw.get("observation_type_field") is None and raw.get("static_observation_type") is None:
+        raise ValueError("mapping requires observation_type_field or static_observation_type")
+    if raw.get("unit_field") is None and raw.get("static_unit") is None:
+        raise ValueError("mapping requires unit_field or static_unit")
     return ObservationMapping(
-        observation_type_field=str(raw["observation_type_field"]),
+        observation_type_field=(
+            None if raw.get("observation_type_field") is None
+            else str(raw["observation_type_field"])
+        ),
         asset_id_field=str(raw["asset_id_field"]),
         value_field=str(raw["value_field"]),
-        unit_field=str(raw["unit_field"]),
+        unit_field=(
+            None if raw.get("unit_field") is None
+            else str(raw["unit_field"])
+        ),
         confidence_field=(
             None if raw.get("confidence_field") is None
             else str(raw["confidence_field"])
