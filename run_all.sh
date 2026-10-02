@@ -16,4 +16,5 @@ python3 scripts/network_resilience_demo.py
 python3 scripts/temporal_allocation_demo.py
 python3 scripts/strategy_oracle_demo.py
 python3 scripts/v09_operational_demo.py
+python3 scripts/v10_reality_operational_demo.py
 python3 -m unittest discover -s tests -v
