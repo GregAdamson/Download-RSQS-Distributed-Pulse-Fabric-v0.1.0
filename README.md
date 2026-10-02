@@ -1,95 +1,172 @@
-# RSQS Distributed State, Cognition and Action Fabric v0.9.0
+# RSQS Distributed Reality Intelligence Fabric v0.10.0
 
-RSQS is an executable deterministic fabric for authorised distributed action, temporal world-state reasoning, causal learning, resource resilience, bounded strategy search and auditable operational coordination.
+RSQS is an executable deterministic fabric for authorised distributed action, temporal reasoning, resource resilience, bounded strategy search, trusted real-world observation and auditable reality reconciliation.
 
-## v0.9 operational layer
+## v0.10 operational reality layer
 
-### Explicit trust plane
+### External observation adapters
 
-Nodes can be enrolled using authority-signed grants with:
+The fabric can ingest observations from:
 
-- public-key identity;
-- scoped capabilities;
-- issue and expiry time;
-- revocation;
-- key rotation.
+- JSON HTTP endpoints;
+- JSON files;
+- CSV files;
+- generic telemetry mappings;
+- weather mappings;
+- satellite mappings;
+- logistics mappings;
+- market mappings.
 
-Distributed dispatch can require both an active authority grant and a currently valid node-signed capability advertisement. Local worker policy remains an independent deny boundary.
+The named domain adapters share the same canonical `PhysicalObservation` interface. Adapter configuration can be supplied as JSON rather than hard-coded Python. HTTP credentials can be supplied through environment variables.
 
-### Durable and TLS-capable transport
+### Evidence fusion
 
-The pulse HTTP transport can use a durable SQLite event store and optional TLS server/client contexts. The deployment CLI reads bearer tokens from an environment variable instead of requiring them on the command line.
+`EvidenceFusionEngine` combines multiple measurements of the same asset/state while preserving:
 
-### Multi-host acceptance harness
+- per-source confidence;
+- source reliability;
+- evidence staleness;
+- independence groups;
+- disagreement;
+- contradiction status;
+- contributor provenance.
 
-The repository contains signed host-evidence generation and verification for the physical multi-host acceptance criteria. The verifier requires enrolled signing identities and distinct host-instance attestations.
+Correlated derived feeds share an evidence budget so duplicated downstream feeds do not masquerade as independent confirmation.
 
-`MULTI_HOST_HARNESS_PROOF=PASS` proves the harness in CI. It does **not** prove that three physical machines have passed acceptance. Physical acceptance remains the procedure in `docs/V09_MULTI_HOST_RUNBOOK.md`.
+### Persistent physical evidence
 
-### Operational observability
+`RealityStore` persists:
 
-The runtime observability surface includes:
+- raw physical observations;
+- fused observations;
+- expected-vs-observed variances.
 
-- health and provenance validity;
-- current world state;
-- unresolved operations;
-- registered capability status;
-- active enrolled node IDs and trust counts;
-- resource bottlenecks when an inventory/dependency graph is attached;
-- strategy evidence counts;
-- highest-scoring validated stored trajectory.
+The state survives restart.
 
-The runtime daemon exposes this through `/observability` and unresolved operations through `/operations`.
+### Digital twins
 
-### Bounded strategy search
+`DigitalTwinStore` persists:
 
-The strategy layer now has:
+- asset identity and type;
+- parent/child hierarchy;
+- asset relationships;
+- time-versioned physical state;
+- observation confidence;
+- source references.
 
-- deterministic trajectory generation/validation/scoring;
-- bounded beam search;
-- exhaustive bounded search.
+Hierarchy updates are transactional and reject cycles.
 
-Exhaustive search reports whether the configured finite search space was completed or truncated by the candidate cap. A result is only globally optimal **within the configured bounds and generated search tree** when the search reports complete.
+### Active information requirements
 
-### Target-agnostic institutional/data adapters
+`InformationRequirementEngine` identifies state that is:
 
-The adapter layer is intentionally domain-neutral. Caller-supplied mappings can project external records into canonical:
+- missing;
+- stale;
+- below required confidence;
+- supported by contradictory evidence.
 
-- observations;
-- resources;
-- capability/resource dependencies;
-- institutional rules;
-- provenance references.
+Open information requirements are persistent and close when acceptable evidence arrives.
 
-Adapter batches can be applied to runtime world state, resource inventory, dependency graphs and a persistent institutional rule store without hard-coding a sector or institution.
+### Active observation acquisition
 
-## Existing deterministic substrate
+`AcquisitionPlanner` selects bounded observation sources for open information needs. Selection considers:
 
-v0.9 retains the prior executable layers:
+- source reliability;
+- expected cost;
+- latency;
+- source independence;
+- supported observation types;
+- optional asset scope.
 
-- signed distributed task/result execution;
-- persistent identity and epochs;
-- idempotency and physical-effect reconciliation;
+`AcquisitionExecutor` invokes only the selected adapters. The resulting evidence flows back through fusion, the twin and world state.
+
+### Reality runtime
+
+`RealityEngine` connects:
+
+```text
+external feed
+ -> PhysicalObservation
+ -> persistent raw evidence
+ -> evidence fusion
+ -> persistent fused state
+ -> digital twin
+ -> authoritative RSQS world state
+ -> information requirements
+ -> bounded source acquisition
+ -> expected-vs-observed variance
+ -> provenance ledger
+```
+
+The authoritative runtime state uses keys such as:
+
+```text
+physical.<asset_id>.<observation_type>
+physical.<asset_id>.<observation_type>:confidence
+physical.<asset_id>.<observation_type>:unit
+physical.<asset_id>.<observation_type>:contradictory
+```
+
+### Operational Reality API
+
+The runtime daemon can expose the reality layer with `--reality`.
+
+Read endpoints:
+
+```text
+GET /reality/status
+GET /reality/needs
+GET /reality/twin?asset_id=<id>
+```
+
+Write endpoint:
+
+```text
+POST /reality/observations
+```
+
+Writes require a bearer token supplied by environment variable. Optional TLS certificate/key support is available for the runtime daemon.
+
+### Configuration-driven ingestion
+
+`scripts/reality_ingest.py` loads one or more adapter definitions, fetches the external feeds and posts canonical observations to the running reality API.
+
+Supported source configuration types:
+
+```text
+http_json
+json_file
+csv_file
+```
+
+## Existing operational substrate
+
+v0.10 retains the v0.9 capabilities:
+
+- signed scoped node enrolment;
+- expiry, revocation and key rotation;
+- signed capability advertisements;
+- durable/TLS-capable pulse transport;
+- local deny overriding remote allow;
+- idempotent/reconciled distributed execution;
+- physical-effect reconciliation;
 - authoritative temporal state;
-- causal/scientific learning;
 - resource inventories and substitution;
 - recursive dependency/resilience planning;
-- multi-period allocation with replenishment, quality, transport, loss and lead time;
-- resilience objective scoring;
-- seeded Monte Carlo shock testing;
-- dependency centrality;
+- multi-period allocation;
+- Monte Carlo resilience;
 - resilience oracle;
-- persistent scenarios, trajectories, outcomes and lessons.
+- beam and exhaustive bounded trajectory search;
+- operational observability;
+- signed multi-host acceptance evidence.
 
-## Executable proof chain
+## Complete proof chain
 
 Run:
 
 ```bash
 bash run_all.sh
 ```
-
-The complete build compiles the package, deployment scripts and tests before running all demonstrations and unit/integration tests.
 
 Current proof markers include:
 
@@ -104,11 +181,25 @@ TEMPORAL_ALLOCATION_PROOF=PASS
 STRATEGY_ORACLE_PROOF=PASS
 OPERATIONAL_FABRIC_PROOF=PASS
 MULTI_HOST_HARNESS_PROOF=PASS
+REALITY_OPERATIONAL_PROOF=PASS
 ```
 
-## Deployment tooling
+The reality tests additionally exercise:
 
-Operator-facing scripts include:
+- a live localhost JSON HTTP feed;
+- authenticated observation writes;
+- config-driven HTTP headers;
+- persistent restart recovery;
+- correlation-aware evidence fusion;
+- staleness weighting;
+- contradiction detection;
+- transactional twin hierarchy rollback;
+- information-need creation and resolution;
+- active acquisition from independent sources;
+- RSQS state projection;
+- reality variance persistence.
+
+## Operator tooling
 
 ```text
 scripts/pulse_transport_server.py
@@ -116,40 +207,28 @@ scripts/host_coordinator.py
 scripts/host_worker.py
 scripts/trust_admin.py
 scripts/multi_host_evidence.py
-```
-
-The canonical physical-host procedure is:
-
-```text
-docs/V09_MULTI_HOST_RUNBOOK.md
+scripts/reality_ingest.py
 ```
 
 ## Design invariants
 
-- local deny overrides remote allow;
-- enrolment is explicit and scoped;
-- expired or revoked authority is not valid authority;
-- capability discovery can require signed advertisements;
 - prediction is not observation;
-- unknown physical outcome is not proof of non-execution;
-- resources cannot be allocated twice;
-- current obligations are not silently sacrificed for future ones;
+- observation confidence and provenance are retained;
+- correlated sources do not count as independent confirmation;
+- stale evidence loses influence;
+- contradictory evidence remains visible;
+- missing or uncertain state creates an explicit information need;
+- acquisition is bounded and source-selective;
+- local deny overrides remote allow;
+- unknown physical execution outcome is not proof of non-execution;
 - invalid trajectories cannot win optimisation;
-- truncated search is not described as globally optimal;
-- learning preserves historical evidence and provenance;
-- optimisation proposes; deterministic admissibility decides;
+- truncated search is not called globally optimal;
 - no Internet scanning, self-propagation or arbitrary remote shell is part of the fabric.
 
-## Boundaries
+## Operational boundary
 
-This repository is tested research/software infrastructure, not evidence of AGI or autonomous general intelligence.
+The software is operational as a tested local/distributed reality-intelligence fabric: it can ingest configured feeds, persist and fuse evidence, maintain twins, detect information gaps, acquire bounded additional observations and expose the state through an authenticated API.
 
-CI proves the software mechanisms and simulated/signed acceptance harness. It does not establish:
+This does **not** by itself prove that any specific external production sensor, satellite service, SCADA system or institutional feed has been connected. Those integrations require source-specific URLs, credentials, schemas and acceptance evidence.
 
-- physical independence of hosts;
-- absence of a copied secret without operator attestation;
-- production security accreditation;
-- Internet-scale operation;
-- global mathematical optimality outside a fully explored bounded search space.
-
-The remaining physical acceptance boundary is to run the v0.9 multi-host procedure on three distinct enrolled machines and preserve their signed evidence/logs.
+Physical three-host acceptance remains separate and is documented in `docs/V09_MULTI_HOST_RUNBOOK.md`.
