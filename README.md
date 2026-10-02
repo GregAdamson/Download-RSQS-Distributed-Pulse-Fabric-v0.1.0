@@ -232,3 +232,81 @@ The software is operational as a tested local/distributed reality-intelligence f
 This does **not** by itself prove that any specific external production sensor, satellite service, SCADA system or institutional feed has been connected. Those integrations require source-specific URLs, credentials, schemas and acceptance evidence.
 
 Physical three-host acceptance remains separate and is documented in `docs/V09_MULTI_HOST_RUNBOOK.md`.
+
+
+## v0.11 distributed intelligence namespace
+
+The reality fabric now exports derived intelligence as signed envelopes and gives every registered intelligence identity a stable RSQS URI.
+
+Examples:
+
+```text
+rsqs://node/<stable-id>
+rsqs://asset/<stable-id>
+rsqs://institution/<stable-id>
+```
+
+Identity IDs are deterministic from `owner_node + kind + local_ref`, so rebuilding a directory does not create a new URI for the same locally owned identity.
+
+A local asset identity can be called for:
+
+```text
+describe
+snapshot
+state
+relations
+history
+export
+```
+
+A node identity can be called for:
+
+```text
+describe
+health
+state
+capabilities
+```
+
+Generic identities such as institutions expose their registered metadata and can be extended with additional resolvers.
+
+### Signed intelligence export
+
+`IntelligenceExporter` creates a signed derived-intelligence envelope containing the selected current state, confidence, relations and provenance references. The raw sensor evidence is not copied into the envelope.
+
+Export policy supports:
+
+- minimum confidence;
+- key inclusion/exclusion;
+- provenance-reference inclusion/exclusion;
+- relation inclusion/exclusion;
+- time-limited envelopes.
+
+### Federated intelligence
+
+`FederatedIntelligenceStore` accepts envelopes only from explicitly trusted issuer public keys and rejects invalid or expired signatures.
+
+Once imported, remote identities use the same callable namespace as local identities. A consumer therefore calls an `rsqs://...` identity without needing to know whether the current intelligence was produced locally or imported from a trusted remote node.
+
+The authenticated runtime API exposes:
+
+```text
+GET  /intelligence/status
+GET  /intelligence/identities
+POST /intelligence/call
+POST /intelligence/import
+```
+
+Start the daemon with `--intelligence` and provide `RSQS_INTELLIGENCE_TOKEN`. The daemon now uses a persistent node signing identity by default at `<state>.identity`, or an explicit `--identity-key` path.
+
+Operator administration:
+
+```text
+scripts/intelligence_admin.py
+```
+
+The complete build includes:
+
+```text
+INTELLIGENCE_FEDERATION_PROOF=PASS
+```
