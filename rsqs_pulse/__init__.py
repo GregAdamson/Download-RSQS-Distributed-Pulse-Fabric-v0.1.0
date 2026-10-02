@@ -76,3 +76,5 @@ from .observation_acquisition import AcquisitionExecutor, AcquisitionPlanner, Ac
 from .reality_runtime import RealityEngine, RealityProcessingResult
 from .reality_store import RealityStore
 from .sensor_adapters import CSVObservationAdapter, JSONFileObservationAdapter, JSONHTTPObservationAdapter, LogisticsAdapter, MarketObservationAdapter, ObservationMapping, RecordObservationAdapter, SatelliteAdapter, TelemetryAdapter, WeatherAdapter
+
+from .collector import CollectorBatch, CollectorSource, ObservationCollector
