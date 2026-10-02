@@ -72,24 +72,32 @@ class DigitalTwinStore:
     def upsert_asset(self, asset: TwinAsset) -> None:
         if asset.parent_id == asset.asset_id:
             raise ValueError("asset cannot be its own parent")
-        self.conn.execute(
-            """INSERT INTO twin_assets(asset_id,asset_type,name,parent_id,metadata_json)
-               VALUES(?,?,?,?,?)
-               ON CONFLICT(asset_id) DO UPDATE SET
-                 asset_type=excluded.asset_type,
-                 name=excluded.name,
-                 parent_id=excluded.parent_id,
-                 metadata_json=excluded.metadata_json""",
-            (
-                asset.asset_id,
-                asset.asset_type,
-                asset.name,
-                asset.parent_id,
-                json.dumps(asset.metadata, sort_keys=True),
-            ),
-        )
-        self.conn.commit()
-        self._assert_no_parent_cycle(asset.asset_id)
+        self.conn.execute("SAVEPOINT twin_asset_update")
+        try:
+            self.conn.execute(
+                """INSERT INTO twin_assets(asset_id,asset_type,name,parent_id,metadata_json)
+                   VALUES(?,?,?,?,?)
+                   ON CONFLICT(asset_id) DO UPDATE SET
+                     asset_type=excluded.asset_type,
+                     name=excluded.name,
+                     parent_id=excluded.parent_id,
+                     metadata_json=excluded.metadata_json""",
+                (
+                    asset.asset_id,
+                    asset.asset_type,
+                    asset.name,
+                    asset.parent_id,
+                    json.dumps(asset.metadata, sort_keys=True),
+                ),
+            )
+            self._assert_no_parent_cycle(asset.asset_id)
+            self.conn.execute("RELEASE SAVEPOINT twin_asset_update")
+            self.conn.commit()
+        except Exception:
+            self.conn.execute("ROLLBACK TO SAVEPOINT twin_asset_update")
+            self.conn.execute("RELEASE SAVEPOINT twin_asset_update")
+            self.conn.rollback()
+            raise
 
     def _assert_no_parent_cycle(self, asset_id: str) -> None:
         seen = set()
