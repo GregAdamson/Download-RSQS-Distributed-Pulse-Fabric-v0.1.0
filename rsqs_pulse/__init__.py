@@ -78,3 +78,7 @@ from .reality_store import RealityStore
 from .sensor_adapters import CSVObservationAdapter, JSONFileObservationAdapter, JSONHTTPObservationAdapter, LogisticsAdapter, MarketObservationAdapter, ObservationMapping, RecordObservationAdapter, SatelliteAdapter, TelemetryAdapter, WeatherAdapter
 
 from .collector import CollectorBatch, CollectorSource, ObservationCollector
+
+from .intelligence_export import IntelligenceDirectory, IntelligenceEnvelope, IntelligenceExporter, IntelligenceExportPolicy, IntelligenceIdentity
+from .intelligence_federation import FederatedIntelligenceStore
+from .intelligence_router import IntelligenceCallResult, IntelligenceRouter
