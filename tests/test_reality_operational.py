@@ -10,6 +10,7 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+from rsqs_pulse.adapter_config import build_observation_adapter
 from rsqs_pulse.daemon import RuntimeHTTPDaemon
 from rsqs_pulse.digital_twin import DigitalTwinStore, TwinAsset
 from rsqs_pulse.evidence_fusion import EvidenceFusionEngine, SourcePolicy
@@ -518,6 +519,61 @@ class RealityOperationalTests(unittest.TestCase):
         daemon.close()
         thread.join(timeout=5)
         self.assertFalse(thread.is_alive())
+
+
+    def test_configured_adapter_uses_environment_backed_header(self):
+        payload = {
+            "records": [{
+                "kind": "status",
+                "asset": "remote-1",
+                "value": 1,
+                "unit": "flag",
+                "timestamp": "2026-10-01T00:00:00+00:00",
+            }]
+        }
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                if self.headers.get("X-Test-Key") != "secret":
+                    self.send_response(403)
+                    self.end_headers()
+                    return
+                body = json.dumps(payload).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *_):
+                return
+
+        server = HTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        os.environ["RSQS_TEST_FEED_KEY"] = "secret"
+        try:
+            adapter = build_observation_adapter({
+                "type": "http_json",
+                "source": "configured-feed",
+                "url": f"http://127.0.0.1:{server.server_address[1]}",
+                "records_path": ["records"],
+                "header_env": {"X-Test-Key": "RSQS_TEST_FEED_KEY"},
+                "mapping": {
+                    "observation_type_field": "kind",
+                    "asset_id_field": "asset",
+                    "value_field": "value",
+                    "unit_field": "unit",
+                    "timestamp_field": "timestamp",
+                },
+            })
+            result = adapter.fetch()
+            self.assertEqual(result[0].asset_id, "remote-1")
+            self.assertEqual(result[0].source, "configured-feed")
+        finally:
+            os.environ.pop("RSQS_TEST_FEED_KEY", None)
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=3)
 
 
 if __name__ == "__main__":
