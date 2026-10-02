@@ -13,6 +13,10 @@ from rsqs_pulse.information_requirements import (
     InformationRequirementEngine,
     InformationRequirementSpec,
 )
+from rsqs_pulse.observation_acquisition import (
+    AcquisitionPlanner,
+    ObservationSource,
+)
 from rsqs_pulse.persistent import SQLiteState
 from rsqs_pulse.policy import LocalPolicy
 from rsqs_pulse.reality_observation import PhysicalObservation
@@ -313,6 +317,124 @@ class RealityOperationalTests(unittest.TestCase):
         self.assertEqual(engine.status()["store"]["variances"], 1)
         self.assertTrue(runtime.ledger.verify())
         runtime.close()
+
+
+    def test_active_acquisition_closes_missing_information_need(self):
+        class StaticAdapter:
+            def __init__(self, items):
+                self.items = tuple(items)
+                self.calls = 0
+
+            def fetch(self):
+                self.calls += 1
+                return self.items
+
+        runtime = FabricRuntime(
+            "acquisition-node",
+            ":memory:",
+            LocalPolicy(allowed_capabilities=set()),
+        )
+        engine = RealityEngine(runtime)
+        engine.twin.upsert_asset(
+            TwinAsset("asset-2", "asset", "Asset 2", None, {})
+        )
+        spec = InformationRequirementSpec(
+            "pressure",
+            minimum_confidence=0.2,
+            priority=10,
+        )
+        initial = engine.information.evaluate(
+            "asset-2",
+            [spec],
+            engine.twin,
+            engine.store,
+            now=datetime.datetime(2026, 10, 1, tzinfo=datetime.timezone.utc),
+        )
+        self.assertEqual(initial[0].reason, "missing")
+
+        adapter_a = StaticAdapter([
+            PhysicalObservation(
+                "pressure", "asset-2", "2026-10-01T00:00:00+00:00",
+                50.0, "kPa", 0.9, "sensor-a", {"id": "a"},
+            )
+        ])
+        adapter_b = StaticAdapter([
+            PhysicalObservation(
+                "pressure", "asset-2", "2026-10-01T00:00:01+00:00",
+                50.5, "kPa", 0.8, "sensor-b", {"id": "b"},
+            )
+        ])
+        sources = [
+            ObservationSource(
+                "source-a",
+                ("pressure",),
+                adapter_a,
+                reliability=0.95,
+                estimated_cost=1.0,
+                independence_group="group-a",
+                asset_ids=("asset-2",),
+            ),
+            ObservationSource(
+                "source-b",
+                ("pressure",),
+                adapter_b,
+                reliability=0.9,
+                estimated_cost=0.5,
+                independence_group="group-b",
+                asset_ids=("asset-2",),
+            ),
+        ]
+        processed, acquisition = engine.acquire_and_ingest(
+            sources,
+            planner=AcquisitionPlanner(max_sources_per_need=2),
+            requirements={"asset-2": [spec]},
+        )
+        self.assertEqual(len(acquisition), 2)
+        self.assertTrue(all(item.status == "ok" for item in acquisition))
+        self.assertEqual(processed.raw_count, 2)
+        self.assertEqual(engine.information.open_needs(), ())
+        self.assertIn(
+            "physical.asset-2.pressure",
+            runtime.current_state().values,
+        )
+        self.assertEqual(adapter_a.calls, 1)
+        self.assertEqual(adapter_b.calls, 1)
+        runtime.close()
+
+    def test_acquisition_planner_avoids_duplicate_independence_group(self):
+        class EmptyAdapter:
+            def fetch(self):
+                return ()
+
+        state = SQLiteState(":memory:")
+        info = InformationRequirementEngine(state.conn)
+        twin = DigitalTwinStore(state.conn)
+        reality = RealityStore(state.conn)
+        twin.upsert_asset(TwinAsset("asset", "asset", "Asset", None, {}))
+        need = info.evaluate(
+            "asset",
+            [InformationRequirementSpec("level", priority=1)],
+            twin,
+            reality,
+            now=datetime.datetime(2026, 10, 1, tzinfo=datetime.timezone.utc),
+        )[0]
+        sources = [
+            ObservationSource(
+                "a", ("level",), EmptyAdapter(),
+                reliability=1.0, independence_group="same",
+            ),
+            ObservationSource(
+                "b", ("level",), EmptyAdapter(),
+                reliability=0.9, independence_group="same",
+            ),
+            ObservationSource(
+                "c", ("level",), EmptyAdapter(),
+                reliability=0.8, independence_group="independent",
+            ),
+        ]
+        tasks = AcquisitionPlanner(max_sources_per_need=2).plan([need], sources)
+        self.assertEqual([task.source_id for task in tasks], ["a", "c"])
+        state.conn.close()
 
 
 if __name__ == "__main__":
