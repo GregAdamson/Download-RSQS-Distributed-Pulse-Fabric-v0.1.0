@@ -15,10 +15,10 @@ from .reality_observation import PhysicalObservation
 
 @dataclass(frozen=True)
 class ObservationMapping:
-    observation_type_field: str
+    observation_type_field: str | None
     asset_id_field: str
     value_field: str
-    unit_field: str
+    unit_field: str | None
     confidence_field: str | None = None
     timestamp_field: str | None = None
     source_field: str | None = None
@@ -42,14 +42,18 @@ class RecordObservationAdapter:
     def adapt(self, records: Iterable[Mapping[str, Any]]) -> tuple[PhysicalObservation, ...]:
         result = []
         for record in records:
-            observation_type = (
-                self.mapping.static_observation_type
-                or str(record[self.mapping.observation_type_field])
-            )
-            unit = (
-                self.mapping.static_unit
-                or str(record[self.mapping.unit_field])
-            )
+            if self.mapping.static_observation_type is not None:
+                observation_type = self.mapping.static_observation_type
+            elif self.mapping.observation_type_field is not None:
+                observation_type = str(record[self.mapping.observation_type_field])
+            else:
+                raise ValueError("observation type requires a field or static value")
+            if self.mapping.static_unit is not None:
+                unit = self.mapping.static_unit
+            elif self.mapping.unit_field is not None:
+                unit = str(record[self.mapping.unit_field])
+            else:
+                raise ValueError("unit requires a field or static value")
             source = (
                 self.mapping.static_source
                 or (
