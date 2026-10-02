@@ -98,8 +98,14 @@ class IntelligenceDirectory:
         existing = self.by_local_ref(kind, local_ref, owner_node)
         if existing is not None:
             return existing
+        deterministic_id = str(
+            uuid.uuid5(
+                uuid.NAMESPACE_URL,
+                f"rsqs:{owner_node}:{kind}:{local_ref}",
+            )
+        )
         identity = IntelligenceIdentity(
-            identity_id or str(uuid.uuid4()),
+            identity_id or deterministic_id,
             kind,
             local_ref,
             display_name,
