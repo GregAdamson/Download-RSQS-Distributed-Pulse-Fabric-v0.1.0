@@ -1,0 +1,47 @@
+{
+  "sources": [
+    {
+      "source_id": "example-http-telemetry",
+      "interval_seconds": 60,
+      "max_backoff_seconds": 900,
+      "adapter": {
+        "type": "http_json",
+        "source": "example-http-telemetry",
+        "url": "https://example.invalid/api/measurements",
+        "records_path": ["measurements"],
+        "header_env": {
+          "Authorization": "EXAMPLE_FEED_AUTHORIZATION"
+        },
+        "mapping": {
+          "observation_type_field": "type",
+          "asset_id_field": "asset_id",
+          "value_field": "value",
+          "unit_field": "unit",
+          "confidence_field": "confidence",
+          "timestamp_field": "timestamp"
+        },
+        "provenance": {
+          "adapter": "configured-http-json"
+        }
+      }
+    },
+    {
+      "source_id": "example-static-weather-file",
+      "interval_seconds": 300,
+      "max_backoff_seconds": 1800,
+      "adapter": {
+        "type": "json_file",
+        "source": "example-weather-file",
+        "path": "./example-weather.json",
+        "records_path": ["records"],
+        "mapping": {
+          "asset_id_field": "station_id",
+          "value_field": "temperature_c",
+          "static_observation_type": "air_temperature",
+          "static_unit": "C",
+          "timestamp_field": "timestamp"
+        }
+      }
+    }
+  ]
+}
