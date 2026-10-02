@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rsqs-distributed-pulse"
-version = "0.10.0"
-description = "Operational distributed reality intelligence fabric with trusted ingestion, evidence fusion, digital twins and governed action"
+version = "0.11.0"
+description = "Distributed reality intelligence machine with stable callable identities and signed federated intelligence exports"
 requires-python = ">=3.10"
 dependencies = [
   "cryptography>=43.0"
