@@ -67,3 +67,12 @@ from .trust_plane import AuthorityGrant, TrustRegistry, issue_grant, verify_gran
 from .trusted_capabilities import SignedCapabilityAdvertisement, TrustedCapabilityRegistry, sign_capability_advertisement
 from .world_models import CompetingWorldModels, ModelEvaluation, WorldModel
 from .world_state import StateFact, WorldState
+
+from .adapter_config import build_observation_adapter
+from .digital_twin import DigitalTwinStore, TwinAsset, TwinRelation, TwinState
+from .evidence_fusion import EvidenceFusionEngine, FusedObservation, SourcePolicy
+from .information_requirements import InformationNeed, InformationRequirementEngine, InformationRequirementSpec
+from .observation_acquisition import AcquisitionExecutor, AcquisitionPlanner, AcquisitionResult, AcquisitionTask, ObservationSource
+from .reality_runtime import RealityEngine, RealityProcessingResult
+from .reality_store import RealityStore
+from .sensor_adapters import CSVObservationAdapter, JSONFileObservationAdapter, JSONHTTPObservationAdapter, LogisticsAdapter, MarketObservationAdapter, ObservationMapping, RecordObservationAdapter, SatelliteAdapter, TelemetryAdapter, WeatherAdapter
