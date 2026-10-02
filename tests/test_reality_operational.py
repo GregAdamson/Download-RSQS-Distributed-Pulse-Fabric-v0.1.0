@@ -2,11 +2,15 @@ import csv
 import datetime
 import json
 import os
+import queue
 import tempfile
 import threading
 import unittest
+import urllib.error
+import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+from rsqs_pulse.daemon import RuntimeHTTPDaemon
 from rsqs_pulse.digital_twin import DigitalTwinStore, TwinAsset
 from rsqs_pulse.evidence_fusion import EvidenceFusionEngine, SourcePolicy
 from rsqs_pulse.information_requirements import (
@@ -435,6 +439,85 @@ class RealityOperationalTests(unittest.TestCase):
         tasks = AcquisitionPlanner(max_sources_per_need=2).plan([need], sources)
         self.assertEqual([task.source_id for task in tasks], ["a", "c"])
         state.conn.close()
+
+
+    def test_reality_http_api_requires_auth_and_updates_twin(self):
+        ready = queue.Queue()
+
+        def serve():
+            runtime = FabricRuntime(
+                "api-node",
+                ":memory:",
+                LocalPolicy(allowed_capabilities=set()),
+            )
+            reality = RealityEngine(runtime)
+            daemon = RuntimeHTTPDaemon(
+                runtime,
+                "127.0.0.1",
+                0,
+                reality_engine=reality,
+                write_token="secret-token",
+            )
+            ready.put((daemon, runtime))
+            daemon.serve_forever()
+            runtime.close()
+
+        thread = threading.Thread(target=serve, daemon=True)
+        thread.start()
+        daemon, runtime = ready.get(timeout=5)
+        host, port = daemon.address
+        base = f"http://{host}:{port}"
+        payload = json.dumps({
+            "observations": [{
+                "observation_type": "level",
+                "asset_id": "tank-api",
+                "timestamp": "2026-10-01T00:00:00+00:00",
+                "value": 7.5,
+                "unit": "ML",
+                "confidence": 0.9,
+                "source": "api-test",
+                "provenance": {"test": True},
+            }]
+        }).encode("utf-8")
+
+        unauthorised = urllib.request.Request(
+            base + "/reality/observations",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            urllib.request.urlopen(unauthorised, timeout=5)
+        self.assertEqual(caught.exception.code, 401)
+
+        authorised = urllib.request.Request(
+            base + "/reality/observations",
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": "Bearer secret-token",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(authorised, timeout=5) as response:
+            accepted = json.loads(response.read().decode("utf-8"))
+        self.assertEqual(accepted["accepted"], 1)
+
+        with urllib.request.urlopen(
+            base + "/reality/status", timeout=5
+        ) as response:
+            status = json.loads(response.read().decode("utf-8"))
+        self.assertEqual(status["store"]["raw_observations"], 1)
+
+        with urllib.request.urlopen(
+            base + "/reality/twin?asset_id=tank-api", timeout=5
+        ) as response:
+            twin = json.loads(response.read().decode("utf-8"))
+        self.assertEqual(twin["state"]["level"]["value"], 7.5)
+
+        daemon.close()
+        thread.join(timeout=5)
+        self.assertFalse(thread.is_alive())
 
 
 if __name__ == "__main__":
