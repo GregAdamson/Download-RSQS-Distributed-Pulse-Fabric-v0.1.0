@@ -15,6 +15,7 @@ from .information_requirements import (
 )
 from .reality_observation import PhysicalObservation, RealityVariance
 from .reality_store import RealityStore
+from .observation_acquisition import AcquisitionExecutor, AcquisitionPlanner, ObservationSource
 
 
 @dataclass(frozen=True)
@@ -183,8 +184,54 @@ class RealityEngine:
         )
         return variance
 
+    def acquire_and_ingest(
+        self,
+        sources: Iterable[ObservationSource],
+        *,
+        planner: AcquisitionPlanner | None = None,
+        requirements: Mapping[str, Iterable[InformationRequirementSpec]] | None = None,
+    ) -> tuple[RealityProcessingResult, tuple[Any, ...]]:
+        needs = self.information.open_needs()
+        planner = planner or AcquisitionPlanner()
+        tasks = planner.plan(needs, sources)
+        results = AcquisitionExecutor().execute(tasks, sources)
+        observations = tuple(
+            observation
+            for result in results
+            if result.status == "ok"
+            for observation in result.observations
+        )
+        processed = self.ingest(
+            observations,
+            requirements=requirements,
+        )
+        for result in results:
+            self.runtime.ledger.append(
+                "acquisition_result",
+                result.task.need_id,
+                {
+                    "source_id": result.task.source_id,
+                    "asset_id": result.task.asset_id,
+                    "observation_type": result.task.observation_type,
+                    "status": result.status,
+                    "observation_count": len(result.observations),
+                    "error": result.error,
+                },
+            )
+        return processed, results
+
     def status(self) -> dict[str, Any]:
         return {
             "store": self.store.counts(),
             "open_information_needs": len(self.information.open_needs()),
+            "open_needs": [
+                {
+                    "need_id": item.need_id,
+                    "asset_id": item.asset_id,
+                    "observation_type": item.observation_type,
+                    "reason": item.reason,
+                    "priority": item.priority,
+                }
+                for item in self.information.open_needs()
+            ],
         }
