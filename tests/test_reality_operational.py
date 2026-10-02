@@ -11,6 +11,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from rsqs_pulse.adapter_config import build_observation_adapter
+from rsqs_pulse.collector import CollectorSource, ObservationCollector
 from rsqs_pulse.daemon import RuntimeHTTPDaemon
 from rsqs_pulse.digital_twin import DigitalTwinStore, TwinAsset
 from rsqs_pulse.evidence_fusion import EvidenceFusionEngine, SourcePolicy
@@ -574,6 +575,52 @@ class RealityOperationalTests(unittest.TestCase):
             server.shutdown()
             server.server_close()
             thread.join(timeout=3)
+
+
+    def test_collector_persists_schedule_and_backs_off_failures(self):
+        class FlakyAdapter:
+            def __init__(self):
+                self.calls = 0
+
+            def fetch(self):
+                self.calls += 1
+                if self.calls == 1:
+                    raise RuntimeError("temporary failure")
+                return (
+                    PhysicalObservation(
+                        "flow", "asset-c", "2026-10-01T00:00:00+00:00",
+                        1.0, "L/s", 1.0, "collector-source", {},
+                    ),
+                )
+
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "collector.db")
+            state = SQLiteState(path)
+            collector = ObservationCollector(state.conn)
+            adapter = FlakyAdapter()
+            source = CollectorSource(
+                "source-1",
+                adapter,
+                interval_seconds=10,
+                max_backoff_seconds=40,
+            )
+            first = collector.run_due([source], now=100)
+            self.assertEqual(first[0].status, "failed")
+            self.assertEqual(first[0].next_due, 110)
+            self.assertEqual(collector.run_due([source], now=105), ())
+            second = collector.run_due([source], now=110)
+            self.assertEqual(second[0].status, "ok")
+            self.assertEqual(second[0].next_due, 120)
+            state.conn.close()
+
+            restored = SQLiteState(path)
+            collector = ObservationCollector(restored.conn)
+            self.assertEqual(collector.due([source], now=119), ())
+            self.assertEqual(
+                collector.status()[0]["last_success"],
+                110,
+            )
+            restored.conn.close()
 
 
 if __name__ == "__main__":
