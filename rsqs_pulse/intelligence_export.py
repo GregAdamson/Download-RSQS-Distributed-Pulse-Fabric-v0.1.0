@@ -149,6 +149,18 @@ class IntelligenceDirectory:
             row[0], row[1], row[2], row[3], row[4], json.loads(row[5])
         )
 
+    def by_uri(self, uri: str) -> IntelligenceIdentity | None:
+        if not uri.startswith("rsqs://"):
+            return None
+        remainder = uri[len("rsqs://"):]
+        if "/" not in remainder:
+            return None
+        kind, identity_id = remainder.split("/", 1)
+        identity = self.get(identity_id)
+        if identity is None or identity.kind != kind:
+            return None
+        return identity
+
     def all(self) -> tuple[IntelligenceIdentity, ...]:
         rows = self.conn.execute(
             """SELECT identity_id,kind,local_ref,display_name,owner_node,metadata_json
