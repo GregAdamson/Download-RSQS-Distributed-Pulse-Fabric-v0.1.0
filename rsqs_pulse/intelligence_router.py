@@ -20,9 +20,10 @@ class IntelligenceCallResult:
 
 
 class IntelligenceRouter:
-    def __init__(self, runtime, *, reality_engine=None) -> None:
+    def __init__(self, runtime, *, reality_engine=None, federated_store=None) -> None:
         self.runtime = runtime
         self.reality_engine = reality_engine
+        self.federated_store = federated_store
         self.directory = IntelligenceDirectory(runtime.state.conn)
         twin = None if reality_engine is None else reality_engine.twin
         self.exporter = (
@@ -68,6 +69,15 @@ class IntelligenceRouter:
                 self.ensure_asset_identity(row[0])
         return self.directory.all()
 
+    def identity_uris(self) -> tuple[str, ...]:
+        local = {item.uri for item in self.identities()}
+        remote = (
+            set()
+            if self.federated_store is None
+            else set(self.federated_store.identities())
+        )
+        return tuple(sorted(local | remote))
+
     def call(
         self,
         identity_uri: str,
@@ -77,6 +87,18 @@ class IntelligenceRouter:
         args = dict(args or {})
         identity = self.directory.by_uri(identity_uri)
         if identity is None:
+            if self.federated_store is not None:
+                try:
+                    return IntelligenceCallResult(
+                        identity_uri,
+                        operation,
+                        self.federated_store.call(
+                            identity_uri,
+                            operation,
+                        ),
+                    )
+                except KeyError:
+                    pass
             raise KeyError(identity_uri)
 
         if identity.kind == "node":
